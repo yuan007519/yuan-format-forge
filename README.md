@@ -2,11 +2,13 @@
 
 一个纯本机、离线运行的安卓文件格式转换工具箱。**内置 FFmpeg 6.0**，图片 / PDF / PPTX / 文档 / 音频 / 视频 / 文本乱码复原全部在手机上完成——不联网、不上传文件、无广告、无账号。
 
-- 包名 `com.fmtlab.toolbox`，版本 1.3.1（versionCode 5）
+- 包名 `com.fmtlab.toolbox`，版本 1.3.2（versionCode 6）
 - minSdk 24（Android 7.0），targetSdk 34
 - 体积 56.8 MB（56,845,706 字节），原生库覆盖 `arm64-v8a` 与 `armeabi-v7a`
 - 不用 Gradle、不引 AndroidX，纯 framework + 命令行工具链出包
 - **APK 未声明任何权限**（连 `INTERNET` 都没有）
+
+> **1.3.2 修复闪退**：1.3.1 引入的标签滚动处理有一处类型错误——对本来就在 `HorizontalScrollView` 里的标签容器调用了 `setLayoutParams(new ViewGroup.LayoutParams(...))`。`HorizontalScrollView` 是 `FrameLayout`，子 View 的布局参数必须是 `FrameLayout.LayoutParams`；换成基类后，测量阶段把它强转成 `MarginLayoutParams` 就抛 `ClassCastException`，界面还没画出来就闪退。受影响的是文本乱码修复、PDF、视频、万能转码、文档这几个把选项行预先放进滚动容器的页面。现在该分支直接保留 XML 原有参数，不再改写。
 
 > **1.3.1 修复**：选项标签（比如音频提取的三个输出方式）原本排在一条固定宽度的横向布局里，标签一多就把最后一个挤成极窄的一条、文字竖排成一列。现在所有选项行都会自动套进横向滚动容器，标签保持自然宽度，放不下时左右滑动，不再变形。同时把音频模块的标签缩成 `WAV / M4A / AAC 裸流`，一行放得下。
 
@@ -72,8 +74,8 @@ v1.3 全部模块（文本 / 图片 / PDF / 文档 / 音频 / 视频 / 万能转
 
 | 附件 | 体积 | 适用 |
 |---|---|---|
-| `yuan-format-forge_1.3.1_arm64.apk` | 26.8 MB（28,078,679 字节） | 近几年的手机基本都是 arm64，装这个更省空间 |
-| `yuan-format-forge_1.3.1_full.apk` | 56.8 MB（56,845,706 字节） | 两种 CPU 都带，老机型 / 不确定时用这个 |
+| `yuan-format-forge_1.3.2_arm64.apk` | 26.8 MB（28,078,679 字节） | 近几年的手机基本都是 arm64，装这个更省空间 |
+| `yuan-format-forge_1.3.2_full.apk` | 56.8 MB（56,845,706 字节） | 两种 CPU 都带，老机型 / 不确定时用这个 |
 
 判断方法：设置里「关于手机」若写着 `arm64-v8a` 或有「64 位」字样，就用精简版；不确定就用完整版。精简版装到 32 位机型会提示"应用未安装"。
 

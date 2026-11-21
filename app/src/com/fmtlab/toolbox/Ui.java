@@ -378,8 +378,10 @@ public final class Ui {
         private void ensureScrollable(LinearLayout box) {
             ViewParent p = box.getParent();
             if (p instanceof HorizontalScrollView) {
-                box.setLayoutParams(new ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                // 已经在滚动容器里，保持 XML 里的 LayoutParams 原样返回。
+                // 这里绝不能 setLayoutParams(new ViewGroup.LayoutParams(...))：
+                // HorizontalScrollView 是 FrameLayout，子 View 的 params 必须是
+                // FrameLayout.LayoutParams，换成基类会在 onLayout 里 ClassCastException 闪退。
                 return;
             }
             if (!(p instanceof ViewGroup)) return;
@@ -394,7 +396,7 @@ public final class Ui {
             hsv.setClipToPadding(false);
             parent.removeViewAt(index);
             hsv.setLayoutParams(lp);
-            hsv.addView(box, new ViewGroup.LayoutParams(
+            hsv.addView(box, new android.widget.FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
             parent.addView(hsv, index);
         }

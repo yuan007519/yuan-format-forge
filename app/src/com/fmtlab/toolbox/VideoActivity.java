@@ -49,7 +49,11 @@ public class VideoActivity extends Activity {
     private static final int REQ_PICK = 71;
     private static final int REQ_DIR = 72;
 
-    private static final String[] OUT_LABELS = {"MP4 换壳", "WebM 换壳", "GIF 动图", "抽帧图片"};
+    private static final String[] OUT_LABELS = {"MP4 换壳", "WebM 换壳", "MKV 换壳", "MOV 换壳",
+            "GIF 动图", "抽帧图片", "MP3 音轨", "M4A 音轨", "WAV 音轨", "FLAC 音轨",
+            "OGG 音轨", "AAC 音轨", "OPUS 音轨", "WMA 音轨"};
+    private static final String[] AUDIO_EXPORT_EXT = {"mp3", "m4a", "wav", "flac", "ogg", "aac", "opus", "wma"};
+    private static final int AUDIO_MODE_FIRST = 6;
     private static final String[] FPS_LABELS = {"8 帧/秒", "10 帧/秒", "12 帧/秒", "15 帧/秒", "20 帧/秒", "24 帧/秒"};
     private static final int[] FPS_VALUES = {8, 10, 12, 15, 20, 24};
     private static final String[] WIDTH_LABELS = {"320 px", "480 px", "640 px", "720 px"};
@@ -153,8 +157,8 @@ public class VideoActivity extends Activity {
 
     private void syncParamCards() {
         int mode = outChips.selected();
-        gifParamCard.setVisibility(mode == 2 ? View.VISIBLE : View.GONE);
-        frameParamCard.setVisibility(mode == 3 ? View.VISIBLE : View.GONE);
+        gifParamCard.setVisibility(mode == 4 ? View.VISIBLE : View.GONE);
+        frameParamCard.setVisibility(mode == 5 ? View.VISIBLE : View.GONE);
         switch (mode) {
             case 0:
                 tvOutHint.setText("换壳：画面和音质完全不变，只换容器，几秒完成、零画质损失。适合把 mkv / mov / ts / flv / rmvb 变成更通用的 MP4。");
@@ -163,10 +167,19 @@ public class VideoActivity extends Activity {
                 tvOutHint.setText("WebM 换壳只对 VP8 / VP9 编码的视频有效；H.264 的视频请用 MP4，否则只能改用 VP9 重编码。");
                 break;
             case 2:
+                tvOutHint.setText("MKV 换壳由 FFmpeg 做流拷贝：avi / flv / wmv / m2ts / mts / ts / m4s 等容器都能装进 mkv，编码不动、画质不变。");
+                break;
+            case 3:
+                tvOutHint.setText("MOV 换壳：苹果生态与剪辑软件通用的容器，同样是流拷贝，一条视频几秒完成。");
+                break;
+            case 4:
                 tvOutHint.setText("GIF：由 FFmpeg 内核逐帧取画并用 256 色智能调色板量化（palettegen），比旧版逐帧局部色表更干净、不闪色。");
                 break;
-            default:
+            case 5:
                 tvOutHint.setText("抽帧：按固定间隔导出 JPG 图片，用来做封面、截图集、分镜参考。");
+                break;
+            default:
+                tvOutHint.setText("音轨导出：只保留声音，容器可换 MP3 / M4A / WAV / FLAC / OGG / AAC / OPUS / WMA，视频画面不保留。");
                 break;
         }
     }
@@ -266,6 +279,46 @@ public class VideoActivity extends Activity {
 
     // ---------------------------------------------------------------- 输入缓存
 
+    /** FFmpeg 换个容器：MKV / MOV 走流拷贝，拷不动就退回重编码 */
+    private File remuxFfmpeg(String ext) throws Exception {
+        File in = ensureCache();
+        File out = new File(Ui.outDir(this), uniqueName(Ui.baseName(videoName) + "_换壳." + ext));
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                tvVideoStatus.setText("正在换壳为 " + ext.toUpperCase() + "…");
+            }
+        });
+        try {
+            com.fmtlab.toolbox.core.Ffmts.run(new java.util.ArrayList<String>(java.util.Arrays.asList(
+                    "-i", in.getAbsolutePath(), "-map", "0", "-c", "copy",
+                    "-y", out.getAbsolutePath())));
+            lastNote = "流拷贝：画面与音质完全不变";
+        } catch (Exception copyFail) {
+            lastNote = "这条视频的编码不适合直接拷贝，已转为重新编码";
+            com.fmtlab.toolbox.core.Ffmts.run(
+                    com.fmtlab.toolbox.core.Ffmts.videoArgs(in, out, ext, "medium", null));
+        }
+        if (!out.exists() || out.length() == 0) throw new Exception("换壳失败");
+        return out;
+    }
+
+    /** 只导出音轨（MP3 / M4A / WAV / FLAC / OGG / AAC / OPUS / WMA），用 FFmpeg 直接抽音频流 */
+    private File exportAudioTrack(String ext) throws Exception {
+        File in = ensureCache();
+        File out = new File(Ui.outDir(this), uniqueName(Ui.baseName(videoName) + "_音轨." + ext));
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                tvVideoStatus.setText("正在导出 " + ext.toUpperCase() + " 音轨…");
+            }
+        });
+        com.fmtlab.toolbox.core.Ffmts.run(
+                com.fmtlab.toolbox.core.Ffmts.extractAudioArgs(in, out, ext, 192));
+        lastNote = "只导出了音轨，视频画面不在这个文件里";
+        return out;
+    }
+
     /** FFmpeg 只吃真实路径，先把 Uri 读到应用缓存 */
     private File ensureCache() throws Exception {
         if (cacheIn != null && cacheIn.exists() && cacheIn.length() > 0 && videoName.equals(cacheName)) {
@@ -343,11 +396,21 @@ public class VideoActivity extends Activity {
                                 "webm", WEBM_VIDEO, WEBM_AUDIO, "WebM");
                         doneOne(f, lastNote);
                     } else if (mode == 2) {
+                        File f = remuxFfmpeg("mkv");
+                        doneOne(f, lastNote);
+                    } else if (mode == 3) {
+                        File f = remuxFfmpeg("mov");
+                        doneOne(f, lastNote);
+                    } else if (mode == 4) {
                         File f = makeGif();
                         doneOne(f, lastNote);
-                    } else {
+                    } else if (mode == 5) {
                         List<File> files = exportFrames();
                         doneMany(files, "抽帧图片");
+                    } else {
+                        int ai = Math.min(mode - AUDIO_MODE_FIRST, AUDIO_EXPORT_EXT.length - 1);
+                        File f = exportAudioTrack(AUDIO_EXPORT_EXT[ai]);
+                        doneOne(f, "音轨导出 · " + AUDIO_EXPORT_EXT[ai].toUpperCase());
                     }
                 } catch (Throwable e) {
                     final String msg = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();

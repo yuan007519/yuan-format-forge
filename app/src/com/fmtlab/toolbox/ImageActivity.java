@@ -38,8 +38,8 @@ public class ImageActivity extends Activity {
     private static final int REQ_PICK = 31;
     private static final int REQ_TREE = 32;
 
-    private static final String[] FMT_LABELS = {"PNG", "JPG", "WEBP", "BMP"};
-    private static final String[] FMT_EXTS = {"png", "jpg", "webp", "bmp"};
+    private static final String[] FMT_LABELS = {"PNG", "JPG", "WEBP", "BMP", "TIFF", "TGA", "QOI", "ICO", "PPM"};
+    private static final String[] FMT_EXTS = {"png", "jpg", "webp", "bmp", "tiff", "tga", "qoi", "ico", "ppm"};
     private static final String[] SCALE_LABELS = {"原尺寸", "≤1920", "≤1280", "≤800", "50%"};
 
     private TextView tvFileInfo, tvStatus, tvQualityLabel;
@@ -275,8 +275,24 @@ public class ImageActivity extends Activity {
     }
 
     private File convertOne(Uri uri, String name, int fmt, int quality, int maxEdge, boolean half) throws Exception {
-        Bitmap src = loadBitmap(uri, half ? 0 : maxEdge);
-        if (src == null) throw new Exception("无法解码这张图片");
+        String ext = FMT_EXTS[fmt];
+        String outName = uniqueName(Ui.baseName(name) + "_" + ext + "." + ext);
+        File out = new File(Ui.outDir(this), outName);
+
+        Bitmap src = null;
+        try {
+            src = loadBitmap(uri, half ? 0 : maxEdge);
+        } catch (Throwable ignored) {
+            // 系统解码器不认识的格式（tiff / tga / psd / qoi / jp2…）交给 FFmpeg
+        }
+        if (src == null) {
+            File in = com.fmtlab.toolbox.core.Ffmts.stage(this, uri, Ui.ext(name));
+            com.fmtlab.toolbox.core.Ffmts.run(
+                    com.fmtlab.toolbox.core.Ffmts.imageArgs(in, out, ext, quality));
+            if (!out.exists() || out.length() == 0) throw new Exception("这张图片的编码不受支持，无法转换");
+            return out;
+        }
+
         Bitmap work = src;
         if (half) {
             work = Bitmap.createScaledBitmap(src, Math.max(1, src.getWidth() / 2), Math.max(1, src.getHeight() / 2), true);
@@ -287,9 +303,6 @@ public class ImageActivity extends Activity {
                 work = Bitmap.createScaledBitmap(src, Math.max(1, (int) (w * s)), Math.max(1, (int) (h * s)), true);
             }
         }
-
-        String outName = uniqueName(Ui.baseName(name) + "_" + FMT_LABELS[fmt].toLowerCase() + "." + FMT_EXTS[fmt]);
-        File out = new File(Ui.outDir(this), outName);
 
         if (fmt == 3) {
             int w = work.getWidth(), h = work.getHeight();
@@ -302,7 +315,7 @@ public class ImageActivity extends Activity {
             } finally {
                 fos.close();
             }
-        } else {
+        } else if (fmt <= 2) {
             Bitmap toWrite = work;
             if (fmt == 1 && work.hasAlpha()) {
                 toWrite = Bitmap.createBitmap(work.getWidth(), work.getHeight(), Bitmap.Config.ARGB_8888);
@@ -324,6 +337,22 @@ public class ImageActivity extends Activity {
                 fos.close();
             }
             if (toWrite != work && !toWrite.isRecycled()) toWrite.recycle();
+        } else {
+            // TIFF / TGA / QOI / ICO / PPM：先落一张无损 PNG，再让 FFmpeg 编成目标格式
+            File tmp = new File(getCacheDir(), "img_tmp_" + System.currentTimeMillis() + ".png");
+            FileOutputStream fos = new FileOutputStream(tmp);
+            try {
+                work.compress(Bitmap.CompressFormat.PNG, 100, fos);
+                fos.flush();
+            } finally {
+                fos.close();
+            }
+            try {
+                com.fmtlab.toolbox.core.Ffmts.run(
+                        com.fmtlab.toolbox.core.Ffmts.imageArgs(tmp, out, ext, quality));
+            } finally {
+                if (tmp.exists()) tmp.delete();
+            }
         }
         if (work != src && !work.isRecycled()) work.recycle();
         if (!src.isRecycled()) src.recycle();

@@ -44,17 +44,18 @@ public class PdfActivity extends Activity {
     private static final int REQ_TREE = 43;
     private static final int REQ_PICK_PPTX = 44;
 
-    private static final String[] MODE_LABELS = {"PDF 转图片", "图片 转 PDF", "PDF 转 PPTX", "PPTX 转 PDF"};
+    private static final String[] MODE_LABELS = {"PDF 转图片", "图片 转 PDF", "PDF 转 PPTX", "PPTX 转 PDF", "PDF 转文本"};
     private static final String[] FMT_LABELS = {"PNG", "JPG"};
     private static final String[] SCALE_LABELS = {"标准", "高清", "超清"};
     private static final String[] PAPER_LABELS = {"跟随图片", "A4 竖版", "A4 横版"};
 
     private TextView tvPdfInfo, tvImgInfo, tvPdfStatus, tvPptxInfo, tvPptxNote;
     private EditText etPageRange;
-    private LinearLayout pdfResultHost, cardPdfToImg, cardImgToPdf, cardPptxToPdf, pdfImgOptions;
+    private LinearLayout pdfResultHost, cardPdfToImg, cardImgToPdf, cardPptxToPdf, pdfImgOptions, pdfTextOptions;
     private ProgressBar pbPdf;
     private Button btnPdfConvert, btnPdfSaveAll;
-    private Ui.Chips modeChips, fmtChips, dpiChips, paperChips;
+    private Ui.Chips modeChips, fmtChips, dpiChips, paperChips, pdfTextChips;
+    private static final String[] PDF_TEXT_OUT = {"TXT", "Markdown", "HTML", "DOCX"};
 
     private Uri pdfUri;
     private String pdfName = "";
@@ -92,6 +93,7 @@ public class PdfActivity extends Activity {
         cardImgToPdf = (LinearLayout) findViewById(R.id.cardImgToPdf);
         cardPptxToPdf = (LinearLayout) findViewById(R.id.cardPptxToPdf);
         pdfImgOptions = (LinearLayout) findViewById(R.id.pdfImgOptions);
+        pdfTextOptions = (LinearLayout) findViewById(R.id.pdfTextOptions);
         pbPdf = (ProgressBar) findViewById(R.id.pbPdf);
         btnPdfConvert = (Button) findViewById(R.id.btnPdfConvert);
         btnPdfSaveAll = (Button) findViewById(R.id.btnPdfSaveAll);
@@ -106,6 +108,7 @@ public class PdfActivity extends Activity {
         fmtChips = new Ui.Chips(this, (LinearLayout) findViewById(R.id.pdfFmtChips), FMT_LABELS, 0);
         dpiChips = new Ui.Chips(this, (LinearLayout) findViewById(R.id.dpiChips), SCALE_LABELS, 0);
         paperChips = new Ui.Chips(this, (LinearLayout) findViewById(R.id.paperChips), PAPER_LABELS, 1);
+        pdfTextChips = new Ui.Chips(this, (LinearLayout) findViewById(R.id.pdfTextOutChips), PDF_TEXT_OUT, 0);
         syncMode();
 
         findViewById(R.id.btnPickPdf).setOnClickListener(new View.OnClickListener() {
@@ -136,7 +139,8 @@ public class PdfActivity extends Activity {
                     case 0: exportPdf(); break;
                     case 1: imagesToPdf(); break;
                     case 2: pdfToPptx(); break;
-                    default: pptxToPdf(); break;
+                    case 3: pptxToPdf(); break;
+                    default: pdfToText(); break;
                 }
             }
         });
@@ -159,16 +163,19 @@ public class PdfActivity extends Activity {
 
     private void syncMode() {
         int mode = modeChips.selected();
-        cardPdfToImg.setVisibility(mode == 0 || mode == 2 ? View.VISIBLE : View.GONE);
+        boolean textMode = mode == 4;
+        cardPdfToImg.setVisibility(mode == 0 || mode == 2 || textMode ? View.VISIBLE : View.GONE);
         cardImgToPdf.setVisibility(mode == 1 ? View.VISIBLE : View.GONE);
         cardPptxToPdf.setVisibility(mode == 3 ? View.VISIBLE : View.GONE);
         pdfImgOptions.setVisibility(mode == 0 || mode == 2 ? View.VISIBLE : View.GONE);
+        pdfTextOptions.setVisibility(textMode ? View.VISIBLE : View.GONE);
         tvPptxNote.setVisibility(mode == 2 ? View.VISIBLE : View.GONE);
         switch (mode) {
             case 0: btnPdfConvert.setText("开始导出图片"); break;
             case 1: btnPdfConvert.setText("开始生成 PDF"); break;
             case 2: btnPdfConvert.setText("开始生成 PPTX"); break;
-            default: btnPdfConvert.setText("开始生成 PDF"); break;
+            case 3: btnPdfConvert.setText("开始生成 PDF"); break;
+            default: btnPdfConvert.setText("开始抽取文字"); break;
         }
     }
 
@@ -526,6 +533,63 @@ public class PdfActivity extends Activity {
                         public void run() {
                             pbPdf.setVisibility(View.GONE);
                             tvPdfStatus.setText("转 PDF 失败：" + (e.getMessage() == null ? e.toString() : e.getMessage()));
+                        }
+                    });
+                }
+            }
+        });
+    }
+
+    /** PDF → TXT / Markdown / HTML / DOCX：抽文字层，不还原版式 */
+    private void pdfToText() {
+        if (pdfUri == null) {
+            Ui.toast(this, "请先选择 PDF 文件");
+            return;
+        }
+        final String label = pdfTextChips.label();
+        final String outExt;
+        if ("Markdown".equals(label)) outExt = "md";
+        else if ("HTML".equals(label)) outExt = "html";
+        else if ("DOCX".equals(label)) outExt = "docx";
+        else outExt = "txt";
+
+        results.clear();
+        pdfResultHost.removeAllViews();
+        btnPdfSaveAll.setVisibility(View.GONE);
+        pbPdf.setVisibility(View.VISIBLE);
+        tvPdfStatus.setText("正在抽取文字…");
+
+        exec.execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    byte[] data = Ui.readBytes(PdfActivity.this, pdfUri);
+                    final String text = com.fmtlab.toolbox.core.PdfText.extract(data);
+                    File out = new File(Ui.outDir(PdfActivity.this),
+                            uniqueName(Ui.baseName(pdfName) + "_文本." + outExt));
+                    final String note = com.fmtlab.toolbox.core.DocMatrix.write(
+                            text.getBytes(java.nio.charset.Charset.forName("UTF-8")),
+                            "txt", pdfName, label, out);
+                    if (!out.exists() || out.length() == 0) throw new Exception("写出失败");
+                    results.add(out);
+                    final File fout = out;
+                    final int chars = text.length();
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            pbPdf.setVisibility(View.GONE);
+                            btnPdfSaveAll.setVisibility(View.VISIBLE);
+                            tvPdfStatus.setText("完成：" + label + " · " + chars + " 字符 · " + Ui.size(fout.length())
+                                    + "（" + note + "）");
+                            addRow(fout, label + " · 抽取 " + chars + " 字符");
+                        }
+                    });
+                } catch (final Throwable e) {
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            pbPdf.setVisibility(View.GONE);
+                            tvPdfStatus.setText("抽取失败：" + (e.getMessage() == null ? e.toString() : e.getMessage()));
                         }
                     });
                 }

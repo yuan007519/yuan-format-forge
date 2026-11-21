@@ -17,6 +17,8 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
+import com.fmtlab.toolbox.core.Ffmts;
+
 import java.io.File;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
@@ -31,7 +33,8 @@ public class AudioActivity extends Activity {
 
     private static final int REQ_PICK = 61;
 
-    private static final String[] OUT_LABELS = {"WAV", "M4A", "AAC 裸流"};
+    private static final String[] OUT_LABELS = {"WAV", "M4A", "AAC 裸流", "MP3", "FLAC", "OGG", "OPUS", "WMA"};
+    private static final String[] OUT_EXT = {"wav", "m4a", "aac", "mp3", "flac", "ogg", "opus", "wma"};
 
     private TextView tvMediaInfo, tvAudioStatus;
     private LinearLayout audioResultHost;
@@ -183,8 +186,10 @@ public class AudioActivity extends Activity {
                         out = extractWav(mediaUri, mediaName);
                     } else if (mode == 1) {
                         out = extractM4a(mediaUri, mediaName);
-                    } else {
+                    } else if (mode == 2) {
                         out = extractAdts(mediaUri, mediaName);
+                    } else {
+                        out = ffmpegAudio(mediaUri, mediaName, OUT_EXT[mode]);
                     }
                     final File fout = out;
                     handler.post(new Runnable() {
@@ -494,6 +499,27 @@ public class AudioActivity extends Activity {
             try { if (raf != null) raf.close(); } catch (Exception ignored) {}
             try { ex.release(); } catch (Exception ignored) {}
         }
+    }
+
+    /** MP3 / FLAC / OGG / OPUS / WMA 等走 FFmpeg 内核 */
+    private File ffmpegAudio(Uri uri, String name, String ext) throws Exception {
+        final String stageExt = Ui.ext(name);
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                tvAudioStatus.setText("正在读取文件到本机缓存…");
+            }
+        });
+        File in = Ffmts.stage(this, uri, stageExt);
+        File out = new File(Ui.outDir(this), uniqueName(Ui.baseName(name) + "_提取." + ext));
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                tvAudioStatus.setText("FFmpeg 正在转成 " + ext.toUpperCase() + " …");
+            }
+        });
+        Ffmts.run(Ffmts.audioArgs(in, out, ext, 192));
+        return out;
     }
 
     private static final int[] AAC_RATES = {96000, 88200, 64000, 48000, 44100, 32000, 24000,

@@ -14,8 +14,7 @@ import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
-import com.fmtlab.toolbox.core.DocConverter;
-import com.fmtlab.toolbox.core.EncodingDetector;
+import com.fmtlab.toolbox.core.DocMatrix;
 import com.fmtlab.toolbox.core.TextCodec;
 
 import java.io.File;
@@ -24,7 +23,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/** Office / 网页 / Markdown 文档互转 */
+/** 文档格式矩阵：Word / Excel / PPT / ODF / EPUB / 网页 / Markdown / CSV / JSON / 纯文本互转 */
 public class DocActivity extends Activity {
 
     private static final int REQ_PICK = 51;
@@ -41,7 +40,7 @@ public class DocActivity extends Activity {
     private String[] outLabels = new String[0];
     private Ui.Chips chips;
     private String resultText = "";
-    private String resultExt = "txt";
+    private File resultFile;
     private String resultName = "";
 
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -54,7 +53,7 @@ public class DocActivity extends Activity {
         exec = Executors.newSingleThreadExecutor();
 
         ((TextView) findViewById(R.id.tvTitle)).setText("文档转换");
-        ((TextView) findViewById(R.id.tvSubtitle)).setText("DOCX / XLSX / PPTX / HTML / MD / TXT");
+        ((TextView) findViewById(R.id.tvSubtitle)).setText("Word / Excel / PPT / ODF / EPUB / 网页 / MD / CSV / JSON · 可出 DOCX 与 PDF");
         findViewById(R.id.btnBack).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -96,6 +95,10 @@ public class DocActivity extends Activity {
         findViewById(R.id.btnDocCopy).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                if (resultText.isEmpty()) {
+                    Ui.toast(DocActivity.this, resultFile != null ? "二进制文件无法复制成文字，请用「保存」或「分享」" : "还没有转换结果");
+                    return;
+                }
                 Ui.copy(DocActivity.this, resultText);
             }
         });
@@ -103,7 +106,7 @@ public class DocActivity extends Activity {
         findViewById(R.id.btnDocSave).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (resultText.isEmpty()) {
+                if (resultFile == null && resultText.isEmpty()) {
                     Ui.toast(DocActivity.this, "还没有转换结果");
                     return;
                 }
@@ -118,6 +121,12 @@ public class DocActivity extends Activity {
         findViewById(R.id.btnDocShare).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                if (resultFile != null) {
+                    List<File> list = new ArrayList<>();
+                    list.add(resultFile);
+                    Ui.shareFiles(DocActivity.this, list, "文档转换结果");
+                    return;
+                }
                 if (resultText.isEmpty()) {
                     Ui.toast(DocActivity.this, "还没有转换结果");
                     return;
@@ -143,20 +152,33 @@ public class DocActivity extends Activity {
             docUri = data.getData();
             docName = Ui.displayName(this, docUri);
             String ext = Ui.ext(docName);
+            resultText = "";
+            resultFile = null;
+            tvPreview.setText("");
+            svPreview.setVisibility(View.GONE);
             tvDocInfo.setText("已选择：" + docName + "（." + ext + "）");
-            outLabels = outputsFor(ext);
-            if (outLabels.length == 0) {
-                tvOutHint.setText("暂不支持该格式：." + ext + "。支持 docx / xlsx / pptx / html / md / txt / csv。");
-                outChips.removeAllViews();
-                chips = null;
+            if (DocMatrix.isLegacyBinary(ext)) {
+                outLabels = new String[0];
+                tvOutHint.setText("老式二进制格式 ." + ext + "（doc / wps / xls / et / ppt / dps / mobi / ofd）"
+                        + "的私有编码解不开，请先在原软件里另存为 docx / xlsx / pptx，或直接转 PDF。");
             } else {
-                chips = new Ui.Chips(this, outChips, outLabels, 0);
-                tvOutHint.setText("可转换为：" + TextUtils.join(" / ", outLabels));
+                outLabels = outputsFor(ext);
+                if (outLabels.length == 0) {
+                    tvOutHint.setText("暂不支持 ." + ext + "：可读 docx / xlsx / pptx / odt / ods / odp / epub / html / md / csv / tsv / json / txt / xml / yaml。");
+                } else {
+                    tvOutHint.setText(DocMatrix.describe(ext) + "\n可转换为：" + TextUtils.join(" / ", outLabels));
+                }
             }
+            outChips.removeAllViews();
+            chips = outLabels.length == 0 ? null : new Ui.Chips(this, outChips, outLabels, 0);
         } else if (requestCode == REQ_SAVE) {
             try {
-                Ui.writeToUri(this, data.getData(),
-                        TextCodec.encodeStrict(resultText, TextCodec.UTF8));
+                if (resultFile != null) {
+                    Ui.copyToUri(this, data.getData(), resultFile);
+                } else {
+                    Ui.writeToUri(this, data.getData(),
+                            TextCodec.encodeStrict(resultText, TextCodec.UTF8));
+                }
                 Ui.toast(this, "已保存：" + resultName);
             } catch (Exception e) {
                 Ui.toast(this, "保存失败：" + e.getMessage());
@@ -165,14 +187,29 @@ public class DocActivity extends Activity {
     }
 
     private String[] outputsFor(String ext) {
-        if ("docx".equals(ext)) return new String[]{"Markdown", "HTML", "纯文本"};
-        if ("xlsx".equals(ext)) return new String[]{"CSV"};
-        if ("pptx".equals(ext)) return new String[]{"纯文本"};
-        if ("html".equals(ext) || "htm".equals(ext)) return new String[]{"纯文本"};
-        if ("md".equals(ext)) return new String[]{"HTML"};
-        if ("txt".equals(ext)) return new String[]{"HTML"};
-        if ("csv".equals(ext)) return new String[]{"HTML 表格"};
-        return new String[0];
+        if (!DocMatrix.readable(ext)) return new String[0];
+        return DocMatrix.isTable(ext) ? DocMatrix.TABLE_OUT : DocMatrix.TEXT_OUT;
+    }
+
+    private static String extOf(String label) {
+        if ("Markdown".equals(label) || "Markdown 表格".equals(label)) return "md";
+        if ("HTML".equals(label) || "HTML 表格".equals(label)) return "html";
+        if ("TXT".equals(label)) return "txt";
+        if ("CSV".equals(label)) return "csv";
+        if ("TSV".equals(label)) return "tsv";
+        if ("JSON".equals(label)) return "json";
+        if ("DOCX".equals(label)) return "docx";
+        if ("ODT".equals(label)) return "odt";
+        if ("RTF".equals(label)) return "rtf";
+        if ("XLSX".equals(label)) return "xlsx";
+        if ("PDF".equals(label)) return "pdf";
+        if ("EPUB".equals(label)) return "epub";
+        return "txt";
+    }
+
+    private static boolean isBinaryOut(String label) {
+        return "DOCX".equals(label) || "PDF".equals(label) || "EPUB".equals(label)
+                || "ODT".equals(label) || "XLSX".equals(label);
     }
 
     private void convert() {
@@ -190,66 +227,40 @@ public class DocActivity extends Activity {
         btnDocConvert.setEnabled(false);
         svPreview.setVisibility(View.GONE);
         docActionRow.setVisibility(View.GONE);
-        tvDocStatus.setText("正在转换…");
+        tvDocStatus.setText("正在读取并转换…");
 
         exec.execute(new Runnable() {
             @Override
             public void run() {
                 try {
-                    byte[] bytes = Ui.readBytes(DocActivity.this, docUri);
-                    String text;
-                    String outExt;
-                    if ("docx".equals(ext)) {
-                        if ("Markdown".equals(out)) {
-                            text = DocConverter.docxToMarkdown(bytes);
-                            outExt = "md";
-                        } else if ("HTML".equals(out)) {
-                            text = DocConverter.docxToHtml(bytes);
-                            outExt = "html";
-                        } else {
-                            text = DocConverter.docxToText(bytes);
-                            outExt = "txt";
-                        }
-                    } else if ("xlsx".equals(ext)) {
-                        text = DocConverter.xlsxToCsv(bytes);
-                        outExt = "csv";
-                    } else if ("pptx".equals(ext)) {
-                        text = DocConverter.pptxToText(bytes);
-                        outExt = "txt";
-                    } else if ("html".equals(ext) || "htm".equals(ext)) {
-                        EncodingDetector.Result r = EncodingDetector.detect(bytes);
-                        text = DocConverter.htmlToText(r.text);
-                        outExt = "txt";
-                    } else if ("md".equals(ext)) {
-                        EncodingDetector.Result r = EncodingDetector.detect(bytes);
-                        text = DocConverter.markdownToHtml(r.text, Ui.baseName(docName));
-                        outExt = "html";
-                    } else if ("txt".equals(ext)) {
-                        EncodingDetector.Result r = EncodingDetector.detect(bytes);
-                        text = DocConverter.textToHtml(r.text, Ui.baseName(docName));
-                        outExt = "html";
-                    } else if ("csv".equals(ext)) {
-                        EncodingDetector.Result r = EncodingDetector.detect(bytes);
-                        text = csvToHtmlTable(r.text, Ui.baseName(docName));
-                        outExt = "html";
-                    } else {
-                        throw new Exception("暂不支持该格式");
-                    }
-                    final String ft = text;
-                    final String fe = outExt;
+                    final byte[] bytes = Ui.readBytes(DocActivity.this, docUri);
+                    final String outExt = extOf(out);
+                    final File outFile = new File(Ui.outDir(DocActivity.this),
+                            uniqueName(Ui.baseName(docName) + "_转换." + outExt));
+                    final String note = DocMatrix.write(bytes, ext, docName, out, outFile);
+                    if (!outFile.exists() || outFile.length() == 0) throw new Exception("写出失败");
+                    final boolean binary = isBinaryOut(out);
+                    final String textContent = binary ? "" : readText(outFile);
+                    final String previewText = binary
+                            ? "已生成 " + out + " 文件：" + outFile.getName() + "\n" + Ui.size(outFile.length())
+                                    + "\n\n" + note + "\n\n（DOCX / PDF / EPUB 是二进制文件，点「保存到手机」或「分享」导出）"
+                            : textContent;
                     handler.post(new Runnable() {
                         @Override
                         public void run() {
-                            resultText = ft;
-                            resultExt = fe;
-                            resultName = Ui.baseName(docName) + "_转换." + fe;
+                            resultFile = binary ? outFile : null;
+                            resultText = textContent;
+                            resultName = outFile.getName();
                             pbDoc.setVisibility(View.GONE);
                             btnDocConvert.setEnabled(true);
                             svPreview.setVisibility(View.VISIBLE);
                             docActionRow.setVisibility(View.VISIBLE);
-                            String shown = ft.length() > 3500 ? ft.substring(0, 3500) + "\n\n…（预览截断，完整内容请另存或分享）" : ft;
+                            String shown = previewText.length() > 3500
+                                    ? previewText.substring(0, 3500) + "\n\n…（预览截断，完整内容请另存或分享）"
+                                    : previewText;
                             tvPreview.setText(shown.isEmpty() ? "（空）" : shown);
-                            tvDocStatus.setText("转换完成：" + preLabel(out) + " · " + ft.length() + " 字符");
+                            tvDocStatus.setText("转换完成：" + out + " · " + note
+                                    + " · " + Ui.size(outFile.length()) + "（已存到应用目录）");
                         }
                     });
                 } catch (final Exception e) {
@@ -266,59 +277,36 @@ public class DocActivity extends Activity {
         });
     }
 
-    private String preLabel(String out) {
-        return out == null ? "" : out;
-    }
-
-    private String csvToHtmlTable(String csv, String title) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("<!DOCTYPE html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\"/>")
-                .append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/>")
-                .append("<title>").append(title).append("</title><style>")
-                .append("body{font-family:-apple-system,\"PingFang SC\",\"Microsoft YaHei\",sans-serif;padding:20px;background:#fff;color:#1f2937;}")
-                .append("table{border-collapse:collapse;width:100%;font-size:14px;}")
-                .append("td,th{border:1px solid #e2e8f0;padding:8px 10px;text-align:left;}")
-                .append("tr:nth-child(even){background:#f8fafc;}")
-                .append("</style></head><body><table>");
-        String[] lines = csv.replace("\r\n", "\n").split("\n", -1);
-        for (int i = 0; i < lines.length; i++) {
-            if (lines[i].trim().isEmpty()) continue;
-            sb.append("<tr>");
-            for (String cell : splitCsvLine(lines[i])) {
-                sb.append("<td>").append(escapeHtml(cell)).append("</td>");
+    private String readText(File f) {
+        if (f == null) return "";
+        java.io.FileInputStream in = null;
+        try {
+            in = new java.io.FileInputStream(f);
+            byte[] data = new byte[(int) Math.min(f.length(), 8 * 1024 * 1024L)];
+            int off = 0;
+            while (off < data.length) {
+                int n = in.read(data, off, data.length - off);
+                if (n <= 0) break;
+                off += n;
             }
-            sb.append("</tr>");
+            return new String(data, 0, off, java.nio.charset.Charset.forName("UTF-8"));
+        } catch (Throwable t) {
+            return "已生成：" + f.getName();
+        } finally {
+            if (in != null) try { in.close(); } catch (Exception ignored) {}
         }
-        sb.append("</table></body></html>");
-        return sb.toString();
     }
 
-    private List<String> splitCsvLine(String line) {
-        List<String> out = new ArrayList<>();
-        StringBuilder cur = new StringBuilder();
-        boolean q = false;
-        for (int i = 0; i < line.length(); i++) {
-            char c = line.charAt(i);
-            if (c == '"') {
-                if (q && i + 1 < line.length() && line.charAt(i + 1) == '"') {
-                    cur.append('"');
-                    i++;
-                } else {
-                    q = !q;
-                }
-            } else if (c == ',' && !q) {
-                out.add(cur.toString());
-                cur.setLength(0);
-            } else {
-                cur.append(c);
-            }
+    private String uniqueName(String name) {
+        File dir = Ui.outDir(this);
+        if (!new File(dir, name).exists()) return name;
+        String base = Ui.baseName(name);
+        String ext = Ui.ext(name);
+        for (int i = 2; i < 1000; i++) {
+            String n = base + "(" + i + ")." + ext;
+            if (!new File(dir, n).exists()) return n;
         }
-        out.add(cur.toString());
-        return out;
-    }
-
-    private String escapeHtml(String s) {
-        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+        return base + "_" + System.currentTimeMillis() + "." + ext;
     }
 
     @Override

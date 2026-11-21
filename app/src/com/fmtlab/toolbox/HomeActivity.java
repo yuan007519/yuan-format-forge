@@ -59,6 +59,8 @@ public class HomeActivity extends Activity {
                         R.drawable.ic_pdf, getColor(R.color.tile_pdf), getColor(R.color.tile_pdf_bg), PdfActivity.class),
                 new Feature(getString(R.string.feat_doc_title), getString(R.string.feat_doc_desc),
                         R.drawable.ic_doc, getColor(R.color.tile_doc), getColor(R.color.tile_doc_bg), DocActivity.class),
+                new Feature(getString(R.string.feat_sub_title), getString(R.string.feat_sub_desc),
+                        R.drawable.ic_sub, getColor(R.color.tile_doc), getColor(R.color.tile_doc_bg), SubtitleActivity.class),
                 new Feature(getString(R.string.feat_audio_title), getString(R.string.feat_audio_desc),
                         R.drawable.ic_audio, getColor(R.color.tile_audio), getColor(R.color.tile_audio_bg), AudioActivity.class),
                 new Feature(getString(R.string.feat_video_title), getString(R.string.feat_video_desc),

@@ -43,9 +43,9 @@ public final class Ooxml {
                 ZipEntry e = new ZipEntry(en.getKey());
                 e.setTime(0L);
                 byte[] data = en.getValue();
-                boolean raw = en.getKey().toLowerCase(java.util.Locale.US).endsWith(".jpeg")
-                        || en.getKey().toLowerCase(java.util.Locale.US).endsWith(".jpg")
-                        || en.getKey().toLowerCase(java.util.Locale.US).endsWith(".png");
+                String lower = en.getKey().toLowerCase(java.util.Locale.US);
+                boolean raw = lower.endsWith(".jpeg") || lower.endsWith(".jpg")
+                        || lower.endsWith(".png") || lower.equals("mimetype");
                 if (raw) {
                     e.setMethod(ZipEntry.STORED);
                     e.setSize(data.length);

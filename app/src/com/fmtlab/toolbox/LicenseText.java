@@ -3,7 +3,7 @@ package com.fmtlab.toolbox;
 /** App 内的法律声明与第三方许可文本（GPLv3 §5(d) 要求的 Appropriate Legal Notices） */
 public final class LicenseText {
 
-    public static final String VERSION_NAME = "1.3.2";
+    public static final String VERSION_NAME = "1.4";
     public static final String REPO_URL = "https://github.com/yuan007519/yuan-format-forge";
 
     private LicenseText() {}
@@ -11,7 +11,10 @@ public final class LicenseText {
     public static String about() {
         return "袁神的格式工坊 v" + VERSION_NAME + "\n"
                 + "包名：com.fmtlab.toolbox\n"
-                + "九大模块：文本乱码修复、图片、PDF（含 PDF ⇄ PPTX）、文档、音频、视频、万能转码、编码工具、关于\n"
+                + "十个模块：文本乱码修复、图片、PDF（转图片 / 合 PDF / ⇄ PPTX / 抽文本）、文档、字幕、音频、视频、万能转码、编码工具、关于\n"
+                + "\n"
+                + "v1.4 新增：字幕 SRT / VTT / ASS / SSA 互转；图片输出扩到 TIFF / TGA / QOI / ICO / PPM；"
+                + "音频 8 种输出、视频 4 种容器 + GIF + 抽帧 + 8 种音轨导出；文档矩阵新增 ODT / RTF / XLSX / EPUB 输出与 EPUB / ODF 输入；PDF 可抽文字层转 TXT / MD / HTML / DOCX。\n"
                 + "\n"
                 + "本应用全部转换都在手机本地完成：APK 未申请任何权限（包括联网权限），"
                 + "不联网、不上传、不读取与当前任务无关的文件。\n"

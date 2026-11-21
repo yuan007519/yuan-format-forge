@@ -15,45 +15,51 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
+import com.fmtlab.toolbox.core.PdfExport;
+import com.fmtlab.toolbox.core.PptxReader;
+import com.fmtlab.toolbox.core.PptxWriter;
+
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/** PDF 转图片 / 图片合成 PDF */
+/** PDF 转图片 / 图片合成 PDF / PDF 转 PPTX / PPTX 转 PDF */
 public class PdfActivity extends Activity {
 
     private static final int REQ_PICK_PDF = 41;
     private static final int REQ_PICK_IMG = 42;
     private static final int REQ_TREE = 43;
+    private static final int REQ_PICK_PPTX = 44;
 
-    private static final String[] MODE_LABELS = {"PDF 转图片", "图片 转 PDF"};
+    private static final String[] MODE_LABELS = {"PDF 转图片", "图片 转 PDF", "PDF 转 PPTX", "PPTX 转 PDF"};
     private static final String[] FMT_LABELS = {"PNG", "JPG"};
     private static final String[] SCALE_LABELS = {"标准", "高清", "超清"};
     private static final String[] PAPER_LABELS = {"跟随图片", "A4 竖版", "A4 横版"};
 
-    private TextView tvPdfInfo, tvImgInfo, tvPdfStatus;
+    private TextView tvPdfInfo, tvImgInfo, tvPdfStatus, tvPptxInfo, tvPptxNote;
     private EditText etPageRange;
-    private LinearLayout pdfResultHost, cardPdfToImg, cardImgToPdf;
+    private LinearLayout pdfResultHost, cardPdfToImg, cardImgToPdf, cardPptxToPdf, pdfImgOptions;
     private ProgressBar pbPdf;
     private Button btnPdfConvert, btnPdfSaveAll;
     private Ui.Chips modeChips, fmtChips, dpiChips, paperChips;
 
     private Uri pdfUri;
     private String pdfName = "";
+    private Uri pptxUri;
+    private String pptxName = "";
     private final List<Uri> pickImages = new ArrayList<>();
     private final List<File> results = new ArrayList<>();
 
@@ -67,7 +73,7 @@ public class PdfActivity extends Activity {
         exec = Executors.newSingleThreadExecutor();
 
         ((TextView) findViewById(R.id.tvTitle)).setText("PDF 工具");
-        ((TextView) findViewById(R.id.tvSubtitle)).setText("逐页导出图片 · 多图合并成 PDF");
+        ((TextView) findViewById(R.id.tvSubtitle)).setText("转图片 · 图片合 PDF · PDF ⇄ PPTX");
         findViewById(R.id.btnBack).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -78,10 +84,14 @@ public class PdfActivity extends Activity {
         tvPdfInfo = (TextView) findViewById(R.id.tvPdfInfo);
         tvImgInfo = (TextView) findViewById(R.id.tvImgInfo);
         tvPdfStatus = (TextView) findViewById(R.id.tvPdfStatus);
+        tvPptxInfo = (TextView) findViewById(R.id.tvPptxInfo);
+        tvPptxNote = (TextView) findViewById(R.id.tvPptxNote);
         etPageRange = (EditText) findViewById(R.id.etPageRange);
         pdfResultHost = (LinearLayout) findViewById(R.id.pdfResultHost);
         cardPdfToImg = (LinearLayout) findViewById(R.id.cardPdfToImg);
         cardImgToPdf = (LinearLayout) findViewById(R.id.cardImgToPdf);
+        cardPptxToPdf = (LinearLayout) findViewById(R.id.cardPptxToPdf);
+        pdfImgOptions = (LinearLayout) findViewById(R.id.pdfImgOptions);
         pbPdf = (ProgressBar) findViewById(R.id.pbPdf);
         btnPdfConvert = (Button) findViewById(R.id.btnPdfConvert);
         btnPdfSaveAll = (Button) findViewById(R.id.btnPdfSaveAll);
@@ -90,42 +100,44 @@ public class PdfActivity extends Activity {
                 .onChange(new Runnable() {
                     @Override
                     public void run() {
-                        boolean pdf2img = modeChips.selected() == 0;
-                        cardPdfToImg.setVisibility(pdf2img ? View.VISIBLE : View.GONE);
-                        cardImgToPdf.setVisibility(pdf2img ? View.GONE : View.VISIBLE);
-                        btnPdfConvert.setText(pdf2img ? "开始导出图片" : "开始生成 PDF");
+                        syncMode();
                     }
                 });
         fmtChips = new Ui.Chips(this, (LinearLayout) findViewById(R.id.pdfFmtChips), FMT_LABELS, 0);
         dpiChips = new Ui.Chips(this, (LinearLayout) findViewById(R.id.dpiChips), SCALE_LABELS, 0);
         paperChips = new Ui.Chips(this, (LinearLayout) findViewById(R.id.paperChips), PAPER_LABELS, 1);
+        syncMode();
 
         findViewById(R.id.btnPickPdf).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                i.addCategory(Intent.CATEGORY_OPENABLE);
-                i.setType("application/pdf");
-                startActivityForResult(i, REQ_PICK_PDF);
+                Picker.launch(PdfActivity.this, REQ_PICK_PDF, false);
             }
         });
 
         findViewById(R.id.btnPickImagesPdf).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                i.addCategory(Intent.CATEGORY_OPENABLE);
-                i.setType("image/*");
-                i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
-                startActivityForResult(i, REQ_PICK_IMG);
+                Picker.launch(PdfActivity.this, REQ_PICK_IMG, true);
+            }
+        });
+
+        findViewById(R.id.btnPickPptx).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Picker.launch(PdfActivity.this, REQ_PICK_PPTX, false);
             }
         });
 
         btnPdfConvert.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (modeChips.selected() == 0) exportPdf();
-                else imagesToPdf();
+                switch (modeChips.selected()) {
+                    case 0: exportPdf(); break;
+                    case 1: imagesToPdf(); break;
+                    case 2: pdfToPptx(); break;
+                    default: pptxToPdf(); break;
+                }
             }
         });
 
@@ -145,6 +157,21 @@ public class PdfActivity extends Activity {
         });
     }
 
+    private void syncMode() {
+        int mode = modeChips.selected();
+        cardPdfToImg.setVisibility(mode == 0 || mode == 2 ? View.VISIBLE : View.GONE);
+        cardImgToPdf.setVisibility(mode == 1 ? View.VISIBLE : View.GONE);
+        cardPptxToPdf.setVisibility(mode == 3 ? View.VISIBLE : View.GONE);
+        pdfImgOptions.setVisibility(mode == 0 || mode == 2 ? View.VISIBLE : View.GONE);
+        tvPptxNote.setVisibility(mode == 2 ? View.VISIBLE : View.GONE);
+        switch (mode) {
+            case 0: btnPdfConvert.setText("开始导出图片"); break;
+            case 1: btnPdfConvert.setText("开始生成 PDF"); break;
+            case 2: btnPdfConvert.setText("开始生成 PPTX"); break;
+            default: btnPdfConvert.setText("开始生成 PDF"); break;
+        }
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -152,8 +179,23 @@ public class PdfActivity extends Activity {
         if (requestCode == REQ_PICK_PDF && data.getData() != null) {
             pdfUri = data.getData();
             pdfName = Ui.displayName(this, pdfUri);
-            tvPdfInfo.setText("已选择：" + pdfName + "\n" + Ui.size(sizeOf(pdfUri)) + " · 共 "
-                    + pageCount(pdfUri) + " 页");
+            int pages = pageCount(pdfUri);
+            StringBuilder sb = new StringBuilder();
+            sb.append("已选择：").append(pdfName).append('\n').append(Ui.size(sizeOf(pdfUri)));
+            if (pages > 0) sb.append(" · 共 ").append(pages).append(" 页");
+            else sb.append(" · 系统打不开这个 PDF（可能加密或已损坏）");
+            String note = Picker.mismatchNote(this, pdfUri, pdfName, Picker.PDF);
+            if (note != null) sb.append('\n').append(note);
+            tvPdfInfo.setText(sb.toString());
+        } else if (requestCode == REQ_PICK_PPTX && data.getData() != null) {
+            pptxUri = data.getData();
+            pptxName = Ui.displayName(this, pptxUri);
+            StringBuilder sb = new StringBuilder();
+            sb.append("已选择：").append(pptxName).append('\n').append(Ui.size(sizeOf(pptxUri)));
+            if (!"pptx".equals(Ui.ext(pptxName))) {
+                sb.append('\n').append("扩展名不是 .pptx，仍会按 PPTX 结构尝试解析");
+            }
+            tvPptxInfo.setText(sb.toString());
         } else if (requestCode == REQ_PICK_IMG) {
             pickImages.clear();
             if (data.getClipData() != null) {
@@ -163,7 +205,7 @@ public class PdfActivity extends Activity {
             } else if (data.getData() != null) {
                 pickImages.add(data.getData());
             }
-            StringBuilder sb = new StringBuilder("已选择 " + pickImages.size() + " 张图片：");
+            StringBuilder sb = new StringBuilder("已选择 " + pickImages.size() + " 个文件：");
             for (int i = 0; i < Math.min(3, pickImages.size()); i++) {
                 if (i > 0) sb.append("、");
                 sb.append(Ui.displayName(this, pickImages.get(i)));
@@ -233,13 +275,17 @@ public class PdfActivity extends Activity {
         return set;
     }
 
+    private float renderScale() {
+        return dpiChips.selected() == 0 ? 2f : (dpiChips.selected() == 1 ? 3f : 4f);
+    }
+
     private void exportPdf() {
         if (pdfUri == null) {
             Ui.toast(this, "请先选择 PDF 文件");
             return;
         }
         final int fmt = fmtChips.selected();
-        final float scale = dpiChips.selected() == 0 ? 2f : (dpiChips.selected() == 1 ? 3f : 4f);
+        final float scale = renderScale();
         final Set<Integer> want = parsePages(etPageRange.getText().toString());
 
         results.clear();
@@ -304,7 +350,7 @@ public class PdfActivity extends Activity {
                     handler.post(new Runnable() {
                         @Override
                         public void run() {
-                            tvPdfStatus.setText("导出失败：" + e.getMessage());
+                            tvPdfStatus.setText("导出失败：" + (e.getMessage() == null ? e.toString() : e.getMessage()));
                         }
                     });
                 } finally {
@@ -324,6 +370,165 @@ public class PdfActivity extends Activity {
                         }
                     }
                 });
+            }
+        });
+    }
+
+    /** PDF → PPTX：每页渲染成 JPEG，写成一个图片版 PPTX */
+    private void pdfToPptx() {
+        if (pdfUri == null) {
+            Ui.toast(this, "请先选择 PDF 文件");
+            return;
+        }
+        final float scale = renderScale();
+        final Set<Integer> want = parsePages(etPageRange.getText().toString());
+
+        results.clear();
+        pdfResultHost.removeAllViews();
+        btnPdfSaveAll.setVisibility(View.GONE);
+        pbPdf.setVisibility(View.VISIBLE);
+        tvPdfStatus.setText("准备转 PPTX…");
+
+        exec.execute(new Runnable() {
+            @Override
+            public void run() {
+                ParcelFileDescriptor pfd = null;
+                PdfRenderer renderer = null;
+                try {
+                    pfd = getContentResolver().openFileDescriptor(pdfUri, "r");
+                    if (pfd == null) throw new Exception("无法打开 PDF");
+                    renderer = new PdfRenderer(pfd);
+                    int total = renderer.getPageCount();
+                    if (total <= 0) throw new Exception("这个 PDF 没有页面");
+
+                    List<byte[]> jpegs = new ArrayList<>();
+                    int[] wpt = new int[total];
+                    int[] hpt = new int[total];
+                    int idx = 0;
+                    for (int i = 0; i < total; i++) {
+                        final int pageNo = i + 1;
+                        wpt[i] = 0;
+                        hpt[i] = 0;
+                        if (!want.isEmpty() && !want.contains(pageNo)) continue;
+                        handler.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                tvPdfStatus.setText("正在渲染第 " + pageNo + "/" + total + " 页…");
+                            }
+                        });
+                        PdfRenderer.Page page = renderer.openPage(i);
+                        try {
+                            int w = Math.max(1, (int) (page.getWidth() * scale));
+                            int h = Math.max(1, (int) (page.getHeight() * scale));
+                            Bitmap bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+                            bmp.eraseColor(Color.WHITE);
+                            page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+                            ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                            bmp.compress(Bitmap.CompressFormat.JPEG, 90, bo);
+                            bmp.recycle();
+                            jpegs.add(bo.toByteArray());
+                            wpt[idx] = page.getWidth();
+                            hpt[idx] = page.getHeight();
+                            idx++;
+                        } finally {
+                            page.close();
+                        }
+                    }
+                    if (jpegs.isEmpty()) throw new Exception("没有可转换的页面，请检查页码范围");
+
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            tvPdfStatus.setText("正在打包 PPTX（共 " + jpegs.size() + " 页）…");
+                        }
+                    });
+
+                    File out = new File(Ui.outDir(PdfActivity.this),
+                            uniqueName(Ui.baseName(pdfName) + ".pptx"));
+                    PptxWriter.fromImages(out, jpegs, wpt, hpt, Ui.baseName(pdfName));
+                    results.add(out);
+                    final File fout = out;
+
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            pbPdf.setVisibility(View.GONE);
+                            btnPdfSaveAll.setVisibility(View.VISIBLE);
+                            tvPdfStatus.setText("完成：" + fout.getName() + " · " + Ui.size(fout.length()));
+                            addRow(fout, "图片版 PPTX · " + jpegs.size() + " 张幻灯片");
+                        }
+                    });
+                } catch (final Throwable e) {
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            pbPdf.setVisibility(View.GONE);
+                            tvPdfStatus.setText("转 PPTX 失败：" + (e.getMessage() == null ? e.toString() : e.getMessage()));
+                        }
+                    });
+                } finally {
+                    try { if (renderer != null) renderer.close(); } catch (Exception ignored) {}
+                    try { if (pfd != null) pfd.close(); } catch (Exception ignored) {}
+                }
+            }
+        });
+    }
+
+    /** PPTX → PDF：有整页图片就还原图片，纯文字就重新排版 */
+    private void pptxToPdf() {
+        if (pptxUri == null) {
+            Ui.toast(this, "请先选择 PPTX 文件");
+            return;
+        }
+        results.clear();
+        pdfResultHost.removeAllViews();
+        btnPdfSaveAll.setVisibility(View.GONE);
+        pbPdf.setVisibility(View.VISIBLE);
+        tvPdfStatus.setText("正在读取 PPTX…");
+
+        exec.execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    byte[] data = Ui.readBytes(PdfActivity.this, pptxUri);
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            tvPdfStatus.setText("正在解析幻灯片结构…");
+                        }
+                    });
+                    PptxReader.Deck deck = PptxReader.read(data);
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            tvPdfStatus.setText("正在排版成 PDF（共 " + deck.slides.size() + " 页幻灯片）…");
+                        }
+                    });
+                    File out = new File(Ui.outDir(PdfActivity.this),
+                            uniqueName(Ui.baseName(pptxName) + ".pdf"));
+                    int pages = PdfExport.slidesToPdf(out, deck);
+                    results.add(out);
+                    final File fout = out;
+                    final int pageCount = pages;
+                    final int slideCount = deck.slides.size();
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            pbPdf.setVisibility(View.GONE);
+                            btnPdfSaveAll.setVisibility(View.VISIBLE);
+                            tvPdfStatus.setText("完成：" + fout.getName() + " · " + Ui.size(fout.length()));
+                            addRow(fout, slideCount + " 页幻灯片 → " + pageCount + " 页 PDF");
+                        }
+                    });
+                } catch (final Throwable e) {
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            pbPdf.setVisibility(View.GONE);
+                            tvPdfStatus.setText("转 PDF 失败：" + (e.getMessage() == null ? e.toString() : e.getMessage()));
+                        }
+                    });
+                }
             }
         });
     }
@@ -416,7 +621,7 @@ public class PdfActivity extends Activity {
                     handler.post(new Runnable() {
                         @Override
                         public void run() {
-                            tvPdfStatus.setText("合成失败：" + e.getMessage());
+                            tvPdfStatus.setText("合成失败：" + (e.getMessage() == null ? e.toString() : e.getMessage()));
                         }
                     });
                 } finally {

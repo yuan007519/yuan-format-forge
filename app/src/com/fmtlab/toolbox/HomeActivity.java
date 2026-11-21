@@ -67,6 +67,8 @@ public class HomeActivity extends Activity {
                         R.drawable.ic_convert, getColor(R.color.tile_convert), getColor(R.color.tile_convert_bg), ConvertActivity.class),
                 new Feature(getString(R.string.feat_codec_title), getString(R.string.feat_codec_desc),
                         R.drawable.ic_code, getColor(R.color.tile_code), getColor(R.color.tile_code_bg), CodecActivity.class),
+                new Feature(getString(R.string.feat_about_title), getString(R.string.feat_about_desc),
+                        R.drawable.ic_info, getColor(R.color.tile_code), getColor(R.color.tile_code_bg), AboutActivity.class),
         };
 
         LinearLayout host = (LinearLayout) findViewById(R.id.cardHost);

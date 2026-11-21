@@ -20,6 +20,8 @@
     <string name="feat_convert_desc">内置 FFmpeg，AVI / WMV / RMVB 全格式互转</string>
     <string name="feat_codec_title">编码工具箱</string>
     <string name="feat_codec_desc">Base64 / URL / Hex / Unicode 互转</string>
+    <string name="feat_about_title">关于与许可</string>
+    <string name="feat_about_desc">版本信息 · GPLv3 声明 · 第三方组件 · 隐私</string>
 
     <string name="tip_local">所有转换都在本机完成，不需要联网，也不会读取与任务无关的文件。</string>
     <string name="action_convert">开始转换</string>

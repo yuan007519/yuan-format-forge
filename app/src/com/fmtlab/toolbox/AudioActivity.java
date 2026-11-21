@@ -70,16 +70,7 @@ public class AudioActivity extends Activity {
         findViewById(R.id.btnPickMedia).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                i.addCategory(Intent.CATEGORY_OPENABLE);
-                i.setType("*/*");
-                String[] mimes = {"audio/*", "video/*"};
-                i.putExtra(Intent.EXTRA_MIME_TYPES, mimes);
-                try {
-                    startActivityForResult(i, REQ_PICK);
-                } catch (Exception e) {
-                    Ui.toast(AudioActivity.this, "无法打开文件选择器");
-                }
+                Picker.launch(AudioActivity.this, REQ_PICK, false);
             }
         });
 

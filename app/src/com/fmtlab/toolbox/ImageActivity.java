@@ -99,15 +99,7 @@ public class ImageActivity extends Activity {
         findViewById(R.id.btnPickImages).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                i.addCategory(Intent.CATEGORY_OPENABLE);
-                i.setType("image/*");
-                i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
-                try {
-                    startActivityForResult(i, REQ_PICK);
-                } catch (Exception e) {
-                    Ui.toast(ImageActivity.this, "无法打开图片选择器");
-                }
+                Picker.launch(ImageActivity.this, REQ_PICK, true);
             }
         });
 

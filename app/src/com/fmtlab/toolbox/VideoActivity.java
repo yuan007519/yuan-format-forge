@@ -14,35 +14,46 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.TextUtils;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
+import com.arthenica.ffmpegkit.FFmpegKit;
+import com.arthenica.ffmpegkit.FFmpegSession;
+import com.arthenica.ffmpegkit.FFmpegSessionCompleteCallback;
+import com.arthenica.ffmpegkit.Log;
+import com.arthenica.ffmpegkit.LogCallback;
+import com.arthenica.ffmpegkit.ReturnCode;
+import com.arthenica.ffmpegkit.Statistics;
+import com.arthenica.ffmpegkit.StatisticsCallback;
 import com.fmtlab.toolbox.core.GifWriter;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
-/** 视频：换封装（MP4/WebM）、转 GIF、抽帧 */
+/** 视频：换封装（MP4/WebM）、转 GIF、抽帧；系统解不了的格式自动交给 FFmpeg 内核 */
 public class VideoActivity extends Activity {
 
     private static final int REQ_PICK = 71;
     private static final int REQ_DIR = 72;
 
     private static final String[] OUT_LABELS = {"MP4 换壳", "WebM 换壳", "GIF 动图", "抽帧图片"};
-    private static final String[] FPS_LABELS = {"8 帧/秒", "12 帧/秒", "15 帧/秒"};
-    private static final int[] FPS_VALUES = {8, 12, 15};
-    private static final String[] WIDTH_LABELS = {"320 px", "480 px", "640 px"};
-    private static final int[] WIDTH_VALUES = {320, 480, 640};
+    private static final String[] FPS_LABELS = {"8 帧/秒", "10 帧/秒", "12 帧/秒", "15 帧/秒", "20 帧/秒", "24 帧/秒"};
+    private static final int[] FPS_VALUES = {8, 10, 12, 15, 20, 24};
+    private static final String[] WIDTH_LABELS = {"320 px", "480 px", "640 px", "720 px"};
+    private static final int[] WIDTH_VALUES = {320, 480, 640, 720};
     private static final String[] INTERVAL_LABELS = {"每 0.5 秒", "每 1 秒", "每 2 秒"};
     private static final double[] INTERVAL_VALUES = {0.5, 1.0, 2.0};
 
@@ -55,12 +66,16 @@ public class VideoActivity extends Activity {
     private LinearLayout videoResultHost, gifParamCard, frameParamCard;
     private ProgressBar pbVideo;
     private Button btnVideoConvert, btnVideoSaveAll;
+    private EditText etGifStart, etGifDuration;
     private Ui.Chips outChips, fpsChips, widthChips, intervalChips;
 
     private Uri videoUri;
     private String videoName = "";
     private final List<File> lastFiles = new ArrayList<>();
-    private String lastSubject = "转换结果";
+    private String lastNote = "";
+
+    private File cacheIn;
+    private String cacheName = "";
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private ExecutorService exec;
@@ -72,7 +87,7 @@ public class VideoActivity extends Activity {
         exec = Executors.newSingleThreadExecutor();
 
         ((TextView) findViewById(R.id.tvTitle)).setText("视频工具");
-        ((TextView) findViewById(R.id.tvSubtitle)).setText("换封装 · 转 GIF · 抽帧，全部本机完成");
+        ((TextView) findViewById(R.id.tvSubtitle)).setText("换封装 · 转 GIF · 抽帧 · 系统解不了的走 FFmpeg");
         findViewById(R.id.btnBack).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -89,9 +104,11 @@ public class VideoActivity extends Activity {
         pbVideo = (ProgressBar) findViewById(R.id.pbVideo);
         btnVideoConvert = (Button) findViewById(R.id.btnVideoConvert);
         btnVideoSaveAll = (Button) findViewById(R.id.btnVideoSaveAll);
+        etGifStart = (EditText) findViewById(R.id.etGifStart);
+        etGifDuration = (EditText) findViewById(R.id.etGifDuration);
 
         outChips = new Ui.Chips(this, (LinearLayout) findViewById(R.id.videoOutChips), OUT_LABELS, 0);
-        fpsChips = new Ui.Chips(this, (LinearLayout) findViewById(R.id.gifFpsChips), FPS_LABELS, 1);
+        fpsChips = new Ui.Chips(this, (LinearLayout) findViewById(R.id.gifFpsChips), FPS_LABELS, 3);
         widthChips = new Ui.Chips(this, (LinearLayout) findViewById(R.id.gifWidthChips), WIDTH_LABELS, 1);
         intervalChips = new Ui.Chips(this, (LinearLayout) findViewById(R.id.frameIntervalChips), INTERVAL_LABELS, 1);
 
@@ -106,15 +123,7 @@ public class VideoActivity extends Activity {
         findViewById(R.id.btnPickVideo).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                i.addCategory(Intent.CATEGORY_OPENABLE);
-                i.setType("video/*");
-                i.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"video/*"});
-                try {
-                    startActivityForResult(i, REQ_PICK);
-                } catch (Exception e) {
-                    Ui.toast(VideoActivity.this, "无法打开文件选择器");
-                }
+                Picker.launch(VideoActivity.this, REQ_PICK, false);
             }
         });
 
@@ -148,13 +157,13 @@ public class VideoActivity extends Activity {
         frameParamCard.setVisibility(mode == 3 ? View.VISIBLE : View.GONE);
         switch (mode) {
             case 0:
-                tvOutHint.setText("换壳：画面和音质完全不变，只换容器，几秒完成、零画质损失。适合把 mkv / mov / ts / flv 变成更通用的 MP4。");
+                tvOutHint.setText("换壳：画面和音质完全不变，只换容器，几秒完成、零画质损失。适合把 mkv / mov / ts / flv / rmvb 变成更通用的 MP4。");
                 break;
             case 1:
-                tvOutHint.setText("WebM 换壳只对 VP8 / VP9 编码的视频有效；H.264 的视频请用 MP4，否则系统无法封装。");
+                tvOutHint.setText("WebM 换壳只对 VP8 / VP9 编码的视频有效；H.264 的视频请用 MP4，否则只能改用 VP9 重编码。");
                 break;
             case 2:
-                tvOutHint.setText("GIF：逐帧取画并量化为 256 色，适合做表情包、教程动图；长视频会很慢、文件也大。");
+                tvOutHint.setText("GIF：由 FFmpeg 内核逐帧取画并用 256 色智能调色板量化（palettegen），比旧版逐帧局部色表更干净、不闪色。");
                 break;
             default:
                 tvOutHint.setText("抽帧：按固定间隔导出 JPG 图片，用来做封面、截图集、分镜参考。");
@@ -168,6 +177,8 @@ public class VideoActivity extends Activity {
         if (requestCode == REQ_PICK && resultCode == RESULT_OK && data != null && data.getData() != null) {
             videoUri = data.getData();
             videoName = Ui.displayName(this, videoUri);
+            cacheIn = null;
+            cacheName = "";
             tvVideoInfo.setText("已选择：" + videoName + "\n正在读取视频信息…");
             loadInfo();
         } else if (requestCode == REQ_DIR && resultCode == RESULT_OK && data != null && data.getData() != null) {
@@ -195,6 +206,10 @@ public class VideoActivity extends Activity {
 
     private String describe(Uri uri) {
         StringBuilder sb = new StringBuilder();
+
+        String note = Picker.mismatchNote(this, uri, videoName, Picker.VIDEO);
+        if (note != null) sb.append(note).append("\n");
+
         MediaMetadataRetriever ret = new MediaMetadataRetriever();
         try {
             ret.setDataSource(this, uri);
@@ -209,10 +224,11 @@ public class VideoActivity extends Activity {
                 sb.append(" · ").append(v / 1000).append(" kbps");
             }
         } catch (Exception e) {
-            sb.append("无法读取时长");
+            sb.append("系统解码器读不出时长（交给 FFmpeg 内核处理）");
         } finally {
             try { ret.release(); } catch (Exception ignored) {}
         }
+        sb.append("\n");
 
         MediaExtractor ex = new MediaExtractor();
         try {
@@ -223,16 +239,16 @@ public class VideoActivity extends Activity {
                 if (mime == null) continue;
                 if (mime.startsWith("video/")) {
                     video++;
-                    if (video == 1) sb.append(" · 视频 ").append(mime);
+                    if (video == 1) sb.append("视频 ").append(mime);
                 } else if (mime.startsWith("audio/")) {
                     audio++;
                     if (audio == 1) sb.append(" · 音频 ").append(mime);
                 }
             }
-            if (video == 0) sb.append("\n这个文件里没有视频轨道");
-            else sb.append("\n共 ").append(ex.getTrackCount()).append(" 条轨道");
+            if (video == 0) sb.append("这个文件里没有视频轨道");
+            else sb.append(" · 共 ").append(ex.getTrackCount()).append(" 条轨道");
         } catch (Exception e) {
-            sb.append("\n系统解不开这个封装（WMV / RMVB / 老 AVI 等需要 FFmpeg 内核），本版本不支持");
+            sb.append("系统解不开这个封装（RMVB / VOB / 老 AVI / WMV），换壳与 GIF 会自动改用 FFmpeg 内核");
         } finally {
             try { ex.release(); } catch (Exception ignored) {}
         }
@@ -248,6 +264,56 @@ public class VideoActivity extends Activity {
         return String.format(java.util.Locale.US, "%02d:%02d", m, s);
     }
 
+    // ---------------------------------------------------------------- 输入缓存
+
+    /** FFmpeg 只吃真实路径，先把 Uri 读到应用缓存 */
+    private File ensureCache() throws Exception {
+        if (cacheIn != null && cacheIn.exists() && cacheIn.length() > 0 && videoName.equals(cacheName)) {
+            return cacheIn;
+        }
+        File dir = new File(getCacheDir(), "video");
+        if (dir.exists()) {
+            File[] olds = dir.listFiles();
+            if (olds != null) for (File f : olds) f.delete();
+        } else {
+            dir.mkdirs();
+        }
+        String ext = Ui.ext(videoName);
+        File dest = new File(dir, "input." + (ext.length() == 0 ? "bin" : ext));
+
+        InputStream in = null;
+        OutputStream out = null;
+        try {
+            in = getContentResolver().openInputStream(videoUri);
+            if (in == null) throw new Exception("无法读取该文件");
+            out = new FileOutputStream(dest);
+            byte[] buf = new byte[64 * 1024];
+            int n;
+            long total = 0, last = 0;
+            while ((n = in.read(buf)) > 0) {
+                out.write(buf, 0, n);
+                total += n;
+                if (total - last > 8L * 1024 * 1024) {
+                    last = total;
+                    final long t = total;
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            tvVideoStatus.setText("正在读取文件到本机缓存… " + Ui.size(t));
+                        }
+                    });
+                }
+            }
+            out.flush();
+        } finally {
+            try { if (in != null) in.close(); } catch (Exception ignored) {}
+            try { if (out != null) out.close(); } catch (Exception ignored) {}
+        }
+        cacheIn = dest;
+        cacheName = videoName;
+        return dest;
+    }
+
     // ---------------------------------------------------------------- 转换
 
     private void convert() {
@@ -261,6 +327,7 @@ public class VideoActivity extends Activity {
         btnVideoSaveAll.setVisibility(View.GONE);
         videoResultHost.removeAllViews();
         lastFiles.clear();
+        lastNote = "";
         tvVideoStatus.setText("准备中…");
 
         exec.execute(new Runnable() {
@@ -268,18 +335,18 @@ public class VideoActivity extends Activity {
             public void run() {
                 try {
                     if (mode == 0) {
-                        File f = remux(videoUri, videoName, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4,
+                        File f = remux(MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4,
                                 "mp4", MP4_VIDEO, MP4_AUDIO, "MP4");
-                        doneOne(f, "视频容器已换成 MP4，画面音质未改动");
+                        doneOne(f, lastNote);
                     } else if (mode == 1) {
-                        File f = remux(videoUri, videoName, MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM,
+                        File f = remux(MediaMuxer.OutputFormat.MUXER_OUTPUT_WEBM,
                                 "webm", WEBM_VIDEO, WEBM_AUDIO, "WebM");
-                        doneOne(f, "视频容器已换成 WebM，画面音质未改动");
+                        doneOne(f, lastNote);
                     } else if (mode == 2) {
-                        File f = makeGif(videoUri, videoName);
-                        doneOne(f, "GIF 动图");
+                        File f = makeGif();
+                        doneOne(f, lastNote);
                     } else {
-                        List<File> files = exportFrames(videoUri, videoName);
+                        List<File> files = exportFrames();
                         doneMany(files, "抽帧图片");
                     }
                 } catch (Throwable e) {
@@ -301,7 +368,6 @@ public class VideoActivity extends Activity {
         final List<File> one = new ArrayList<>();
         one.add(f);
         lastFiles.add(f);
-        lastSubject = meta;
         handler.post(new Runnable() {
             @Override
             public void run() {
@@ -309,7 +375,8 @@ public class VideoActivity extends Activity {
                 btnVideoConvert.setEnabled(true);
                 btnVideoSaveAll.setVisibility(View.VISIBLE);
                 tvVideoStatus.setText("完成：" + f.getName() + " · " + Ui.size(f.length()));
-                videoResultHost.addView(Ui.resultRow(VideoActivity.this, f, meta + " · " + Ui.size(f.length()),
+                videoResultHost.addView(Ui.resultRow(VideoActivity.this, f,
+                        meta + " · " + Ui.size(f.length()),
                         new View.OnClickListener() {
                             @Override
                             public void onClick(View v) {
@@ -322,7 +389,6 @@ public class VideoActivity extends Activity {
 
     private void doneMany(final List<File> files, final String meta) {
         lastFiles.addAll(files);
-        lastSubject = meta;
         handler.post(new Runnable() {
             @Override
             public void run() {
@@ -347,14 +413,95 @@ public class VideoActivity extends Activity {
         });
     }
 
+    // ---------------------------------------------------------------- FFmpeg 执行
+
+    private FFmpegSession runFfmpeg(List<String> list, final String what, final long expectMs) throws Exception {
+        final CountDownLatch latch = new CountDownLatch(1);
+        final FFmpegSession[] box = new FFmpegSession[1];
+        final long[] lastPost = {0};
+
+        String[] args = list.toArray(new String[0]);
+        FFmpegSession s = FFmpegKit.executeWithArgumentsAsync(args,
+                new FFmpegSessionCompleteCallback() {
+                    @Override
+                    public void apply(FFmpegSession session) {
+                        box[0] = session;
+                        latch.countDown();
+                    }
+                },
+                new LogCallback() {
+                    @Override
+                    public void apply(Log log) {
+                        // 只显示统计信息，日志量太大
+                    }
+                },
+                new StatisticsCallback() {
+                    @Override
+                    public void apply(Statistics st) {
+                        if (st == null) return;
+                        long now = System.currentTimeMillis();
+                        if (now - lastPost[0] < 350) return;
+                        lastPost[0] = now;
+                        final double t = st.getTime();
+                        final double speed = st.getSpeed();
+                        handler.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                StringBuilder sb = new StringBuilder(what);
+                                if (expectMs > 0) {
+                                    int p = (int) Math.min(100, Math.round(t * 100.0 / expectMs));
+                                    sb.append(" · ").append(p).append("%");
+                                }
+                                sb.append(" · 已处理 ").append(fmtTime((long) t));
+                                if (speed > 0) {
+                                    sb.append(" · ").append(String.format(java.util.Locale.US, "%.1f", speed)).append("x");
+                                }
+                                tvVideoStatus.setText(sb.toString());
+                            }
+                        });
+                    }
+                });
+        if (s == null) throw new Exception("FFmpeg 启动失败（原生库没能加载）");
+        if (!latch.await(1800, TimeUnit.SECONDS)) throw new Exception("FFmpeg 处理超时");
+        return box[0] != null ? box[0] : s;
+    }
+
+    private static String tailLog(FFmpegSession s, int max) {
+        String logs = "";
+        try { logs = s.getOutput(); } catch (Throwable ignored) {}
+        if (logs == null || logs.length() == 0) {
+            try { logs = s.getAllLogsAsString(); } catch (Throwable ignored) {}
+        }
+        if (logs == null) logs = "";
+        logs = logs.trim();
+        return logs.length() > max ? logs.substring(logs.length() - max) : logs;
+    }
+
+    private static String msgOf(Throwable e) {
+        if (e == null) return "未知错误";
+        String m = e.getMessage();
+        return m == null || m.length() == 0 ? e.getClass().getSimpleName() : m;
+    }
+
     // ---------------------------------------------------------------- 换封装
 
-    private File remux(Uri uri, String name, int muxFormat, String ext,
-                       String[] okVideo, String[] okAudio, String label) throws Exception {
+    private File remux(int muxFormat, String ext, String[] okVideo, String[] okAudio, String label) throws Exception {
+        try {
+            File f = remuxSystem(muxFormat, ext, okVideo, okAudio, label);
+            lastNote = "视频容器已换成 " + label + "，画面音质未改动";
+            return f;
+        } catch (Throwable e) {
+            // 系统解复用器撑不住（RMVB / VOB / WMV 等），交给 FFmpeg
+            File f = remuxFfmpeg(ext, "webm".equals(ext), label);
+            return f;
+        }
+    }
+
+    private File remuxSystem(int muxFormat, String ext, String[] okVideo, String[] okAudio, String label) throws Exception {
         MediaExtractor ex = new MediaExtractor();
         MediaMuxer muxer = null;
         try {
-            ex.setDataSource(this, uri, null);
+            ex.setDataSource(this, videoUri, null);
             int vTrack = -1, aTrack = -1;
             MediaFormat vFmt = null, aFmt = null;
             for (int i = 0; i < ex.getTrackCount(); i++) {
@@ -373,20 +520,17 @@ public class VideoActivity extends Activity {
 
             String vMime = vFmt.getString(MediaFormat.KEY_MIME);
             if (!contains(okVideo, vMime)) {
-                throw new Exception("视频编码是 " + vMime + "，无法放进 " + label + " 容器"
-                        + (label.equals("WebM") ? "（H.264 请改用 MP4）" : "（VP8/VP9 请改用 WebM）"));
+                throw new Exception("视频编码是 " + vMime + "，无法放进 " + label + " 容器");
             }
             if (aTrack >= 0 && aFmt != null) {
                 String aMime = aFmt.getString(MediaFormat.KEY_MIME);
                 if (!contains(okAudio, aMime)) {
-                    // 音频不兼容就只封视频轨，避免整单失败
                     aTrack = -1;
                     aFmt = null;
                 }
             }
 
-            String outName = uniqueName(Ui.baseName(name) + "." + ext);
-            File out = new File(Ui.outDir(this), outName);
+            File out = new File(Ui.outDir(this), uniqueName(Ui.baseName(videoName) + "." + ext));
             if (out.exists()) out.delete();
             muxer = new MediaMuxer(out.getAbsolutePath(), muxFormat);
 
@@ -401,8 +545,7 @@ public class VideoActivity extends Activity {
             if (vFmt.containsKey(MediaFormat.KEY_MAX_INPUT_SIZE)) {
                 maxIn = Math.max(maxIn, vFmt.getInteger(MediaFormat.KEY_MAX_INPUT_SIZE));
             }
-            ByteBuffer buf = ByteBuffer.allocate(maxIn);
-            MediaCodec.BufferInfo bi = new MediaCodec.BufferInfo();
+            ByteBufferPool pool = new ByteBufferPool(maxIn);
 
             long total = 0, reported = 0;
             int lastTrack = -1;
@@ -410,6 +553,8 @@ public class VideoActivity extends Activity {
             while (true) {
                 int t = ex.getSampleTrackIndex();
                 if (t < 0) break;
+                android.media.MediaCodec.BufferInfo bi = new android.media.MediaCodec.BufferInfo();
+                java.nio.ByteBuffer buf = pool.next();
                 buf.clear();
                 int size = ex.readSampleData(buf, 0);
                 if (size < 0) break;
@@ -440,23 +585,146 @@ public class VideoActivity extends Activity {
         }
     }
 
+    /** 两个小缓冲轮换，避免每帧 new 一个 ByteBuffer */
+    private static final class ByteBufferPool {
+        private final java.nio.ByteBuffer a;
+        private final java.nio.ByteBuffer b;
+        private boolean flip = true;
+
+        ByteBufferPool(int size) {
+            a = java.nio.ByteBuffer.allocate(size);
+            b = java.nio.ByteBuffer.allocate(size);
+        }
+
+        java.nio.ByteBuffer next() {
+            flip = !flip;
+            return flip ? a : b;
+        }
+    }
+
+    /** FFmpeg 换壳：先试无损 -c copy，容器/编码不兼容再重编码 */
+    private File remuxFfmpeg(String ext, boolean webm, String label) throws Exception {
+        File in = ensureCache();
+        File out = new File(Ui.outDir(this), uniqueName(Ui.baseName(videoName) + "." + ext));
+        if (out.exists()) out.delete();
+
+        List<String> copy = new ArrayList<>();
+        copy.add("-y");
+        copy.add("-i");
+        copy.add(in.getAbsolutePath());
+        copy.add("-map");
+        copy.add("0:v:0");
+        copy.add("-map");
+        copy.add("0:a:0?");
+        copy.add("-c");
+        copy.add("copy");
+        if (!webm) {
+            copy.add("-movflags");
+            copy.add("+faststart");
+        }
+        copy.add(out.getAbsolutePath());
+
+        FFmpegSession s1 = runFfmpeg(copy, "正在换封装（FFmpeg 无损拷贝）", 0);
+        if (ReturnCode.isSuccess(s1.getReturnCode()) && out.exists() && out.length() > 0) {
+            lastNote = "FFmpeg 无损换壳成 " + label + "，画面音质未改动";
+            return out;
+        }
+        if (out.exists()) out.delete();
+
+        List<String> enc = new ArrayList<>();
+        enc.add("-y");
+        enc.add("-i");
+        enc.add(in.getAbsolutePath());
+        enc.add("-map");
+        enc.add("0:v:0");
+        enc.add("-map");
+        enc.add("0:a:0?");
+        if (webm) {
+            add(enc, "-c:v", "libvpx-vp9", "-crf", "32", "-b:v", "0", "-row-mt", "1");
+            add(enc, "-c:a", "libopus", "-b:a", "128k");
+        } else {
+            add(enc, "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p");
+            add(enc, "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart");
+        }
+        enc.add(out.getAbsolutePath());
+
+        FFmpegSession s2 = runFfmpeg(enc, "正在重编码成 " + label, 0);
+        if (!ReturnCode.isSuccess(s2.getReturnCode()) || !out.exists() || out.length() == 0) {
+            if (out.exists()) out.delete();
+            throw new Exception("换壳失败，最后日志：" + tailLog(s2, 300));
+        }
+        lastNote = "源封装系统无法直接搬轨，已用 FFmpeg 重编码成 " + label + "（画质略有变化）";
+        return out;
+    }
+
     private static boolean contains(String[] arr, String v) {
         for (String s : arr) if (s.equals(v)) return true;
         return false;
     }
 
+    private static void add(List<String> list, String... items) {
+        for (String s : items) list.add(s);
+    }
+
     // ---------------------------------------------------------------- GIF
 
-    private File makeGif(Uri uri, String name) throws Exception {
+    private File makeGif() throws Exception {
         int fps = FPS_VALUES[Math.min(fpsChips.selected(), FPS_VALUES.length - 1)];
         int targetW = WIDTH_VALUES[Math.min(widthChips.selected(), WIDTH_VALUES.length - 1)];
+        double start = parseSec(etGifStart, 0);
+        double dur = parseSec(etGifDuration, 3);
+        if (start < 0) start = 0;
+        if (dur <= 0) throw new Exception("时长要大于 0 秒");
+        if (dur > 60) throw new Exception("GIF 单次最多 60 秒，长视频请先抽帧或分段");
 
+        final long expectMs = (long) Math.round(dur * 1000);
+        File out = new File(Ui.outDir(this), uniqueName(Ui.baseName(videoName) + "_动图.gif"));
+        if (out.exists()) out.delete();
+
+        try {
+            File in = ensureCache();
+            List<String> a = new ArrayList<>();
+            a.add("-y");
+            a.add("-hide_banner");
+            if (start > 0.01) {
+                add(a, "-ss", num(start));
+            }
+            add(a, "-t", num(dur));
+            add(a, "-i", in.getAbsolutePath());
+            add(a, "-vf", "fps=" + fps
+                    + ",scale=" + targetW + ":-2:flags=lanczos"
+                    + ",split[a][b];[a]palettegen=max_colors=256:stats_mode=diff[p]"
+                    + ";[b][p]paletteuse=dither=sierra2_4a:diff_mode=rectangle");
+            add(a, "-loop", "0", "-an");
+            a.add(out.getAbsolutePath());
+
+            FFmpegSession s = runFfmpeg(a, "正在生成 GIF（FFmpeg 调色板）", expectMs);
+            if (!ReturnCode.isSuccess(s.getReturnCode()) || !out.exists() || out.length() == 0) {
+                if (out.exists()) out.delete();
+                throw new Exception(tailLog(s, 260));
+            }
+            lastNote = "GIF 动图 · 第 " + num(start) + "s 起 " + num(dur) + "s · " + fps + "fps · 宽 " + targetW + "px";
+            return out;
+        } catch (Throwable e) {
+            if (out.exists()) out.delete();
+            try {
+                File f = makeGifSystem(fps, targetW, start, dur, expectMs);
+                lastNote = "GIF 动图 · 系统解码器版本 · " + fps + "fps · 宽 " + targetW + "px";
+                return f;
+            } catch (Throwable e2) {
+                throw new Exception("GIF 失败：" + msgOf(e) + "；回退系统解码器也失败：" + msgOf(e2));
+            }
+        }
+    }
+
+    /** 回退：系统 MediaMetadataRetriever 逐帧取画 + 自带 GifWriter */
+    private File makeGifSystem(int fps, int targetW, double start, double dur, long expectMs) throws Exception {
         MediaMetadataRetriever ret = new MediaMetadataRetriever();
         FileOutputStream fos = null;
         try {
-            ret.setDataSource(this, uri);
+            ret.setDataSource(this, videoUri);
             long durMs = parseLong(ret.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION), 0);
-            if (durMs <= 0) throw new Exception("读不到视频时长，无法转 GIF（试试先换壳成 MP4）");
+            if (durMs <= 0) throw new Exception("读不到视频时长");
             int rawW = (int) parseLong(ret.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH), 0);
             int rawH = (int) parseLong(ret.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT), 0);
             int rot = (int) parseLong(ret.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION), 0);
@@ -474,17 +742,19 @@ public class VideoActivity extends Activity {
                 outW = Math.max(2, (int) Math.round(dispW * (outH * 1.0 / dispH)));
             }
 
-            int frames = (int) Math.round(durMs / 1000.0 * fps);
+            long segMs = Math.min((long) (dur * 1000), durMs - (long) (start * 1000));
+            if (segMs <= 0) throw new Exception("起始时间超出了视频长度");
+            int frames = (int) Math.round(segMs / 1000.0 * fps);
             frames = Math.max(1, Math.min(120, frames));
 
-            File out = new File(Ui.outDir(this), uniqueName(Ui.baseName(name) + "_动图.gif"));
+            File out = new File(Ui.outDir(this), uniqueName(Ui.baseName(videoName) + "_动图.gif"));
             fos = new FileOutputStream(out);
             GifWriter gif = new GifWriter(fos, outW, outH);
             int delay = Math.max(2, (int) Math.round(100.0 / fps));
 
             final int totalFrames = frames;
             for (int i = 0; i < frames; i++) {
-                long tUs = (long) (i * 1_000_000L / fps);
+                long tUs = (long) ((start + i * 1.0 / fps) * 1_000_000L);
                 Bitmap bmp = grab(ret, tUs, outW, outH, rawW, rawH, rot);
                 if (bmp == null) continue;
                 if (bmp.getWidth() != outW || bmp.getHeight() != outH) {
@@ -500,7 +770,7 @@ public class VideoActivity extends Activity {
                 handler.post(new Runnable() {
                     @Override
                     public void run() {
-                        tvVideoStatus.setText("正在生成 GIF… " + done + " / " + totalFrames + " 帧");
+                        tvVideoStatus.setText("正在生成 GIF（系统解码器）… " + done + " / " + totalFrames + " 帧");
                     }
                 });
             }
@@ -551,12 +821,20 @@ public class VideoActivity extends Activity {
 
     // ---------------------------------------------------------------- 抽帧
 
-    private List<File> exportFrames(Uri uri, String name) throws Exception {
+    private List<File> exportFrames() throws Exception {
+        try {
+            return exportFramesSystem();
+        } catch (Throwable e) {
+            return exportFramesFfmpeg(msgOf(e));
+        }
+    }
+
+    private List<File> exportFramesSystem() throws Exception {
         double interval = INTERVAL_VALUES[Math.min(intervalChips.selected(), INTERVAL_VALUES.length - 1)];
         MediaMetadataRetriever ret = new MediaMetadataRetriever();
         List<File> files = new ArrayList<>();
         try {
-            ret.setDataSource(this, uri);
+            ret.setDataSource(this, videoUri);
             long durMs = parseLong(ret.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION), 0);
             if (durMs <= 0) throw new Exception("读不到视频时长");
             int rawW = (int) parseLong(ret.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH), 0);
@@ -564,7 +842,7 @@ public class VideoActivity extends Activity {
             int rot = (int) parseLong(ret.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION), 0);
             if (rawW <= 0 || rawH <= 0) throw new Exception("读不到视频分辨率");
 
-            File dir = new File(Ui.outDir(this), Ui.baseName(name) + "_帧图");
+            File dir = new File(Ui.outDir(this), Ui.baseName(videoName) + "_帧图");
             if (!dir.exists()) dir.mkdirs();
 
             int count = (int) Math.floor(durMs / (interval * 1000.0));
@@ -598,11 +876,74 @@ public class VideoActivity extends Activity {
                     }
                 });
             }
-            if (files.isEmpty()) throw new Exception("没有取到任何画面，这个视频可能系统解不了");
+            if (files.isEmpty()) throw new Exception("没有取到任何画面");
             return files;
         } finally {
             try { ret.release(); } catch (Exception ignored) {}
         }
+    }
+
+    /** FFmpeg 抽帧：系统解不了的封装（RMVB / VOB / WMV）走这条路 */
+    private List<File> exportFramesFfmpeg(String reason) throws Exception {
+        double interval = INTERVAL_VALUES[Math.min(intervalChips.selected(), INTERVAL_VALUES.length - 1)];
+        File in = ensureCache();
+        File dir = new File(Ui.outDir(this), Ui.baseName(videoName) + "_帧图");
+        if (!dir.exists()) dir.mkdirs();
+        File[] olds = dir.listFiles();
+        if (olds != null) for (File f : olds) f.delete();
+
+        double rate = 1.0 / interval;
+        List<String> a = new ArrayList<>();
+        a.add("-y");
+        a.add("-hide_banner");
+        a.add("-i");
+        a.add(in.getAbsolutePath());
+        add(a, "-vf", "fps=" + String.format(java.util.Locale.US, "%.4f", rate),
+                "-q:v", "3", "-f", "image2");
+        a.add(new File(dir, "p%03d.jpg").getAbsolutePath());
+
+        FFmpegSession s = runFfmpeg(a, "正在抽帧（FFmpeg 内核）", 0);
+        if (!ReturnCode.isSuccess(s.getReturnCode())) {
+            throw new Exception("系统解码器不行（" + reason + "），FFmpeg 抽帧也失败：" + tailLog(s, 240));
+        }
+        List<File> files = new ArrayList<>();
+        for (int i = 1; i <= 60; i++) {
+            File raw = new File(dir, String.format(java.util.Locale.US, "p%03d.jpg", i));
+            if (!raw.exists()) break;
+            File dst = new File(dir, String.format(java.util.Locale.US, "帧%03d.jpg", i));
+            if (dst.exists()) dst.delete();
+            if (!raw.renameTo(dst)) {
+                dst = raw;
+            }
+            files.add(dst);
+        }
+        // 多出来的图删掉，和系统路径一样最多 60 张
+        int extra = 61;
+        while (true) {
+            File raw = new File(dir, String.format(java.util.Locale.US, "p%03d.jpg", extra));
+            if (!raw.exists()) break;
+            raw.delete();
+            extra++;
+        }
+        if (files.isEmpty()) throw new Exception("FFmpeg 没有输出任何帧");
+        return files;
+    }
+
+    private static double parseSec(EditText et, double def) {
+        if (et == null) return def;
+        String s = et.getText() == null ? "" : et.getText().toString().trim();
+        if (TextUtils.isEmpty(s)) return def;
+        s = s.replace('。', '.').replace(',', '.').replace('，', '.');
+        try {
+            return Double.parseDouble(s);
+        } catch (Exception e) {
+            return def;
+        }
+    }
+
+    private static String num(double v) {
+        if (Math.abs(v - Math.rint(v)) < 1e-6) return String.valueOf((long) Math.rint(v));
+        return String.format(java.util.Locale.US, "%.3f", v);
     }
 
     private static long parseLong(String s, long def) {

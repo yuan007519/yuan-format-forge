@@ -30,6 +30,7 @@
         <activity android:name=".VideoActivity" android:exported="false" />
         <activity android:name=".ConvertActivity" android:exported="false" />
         <activity android:name=".CodecActivity" android:exported="false" />
+        <activity android:name=".AboutActivity" android:exported="false" />
 
         <provider
             android:name=".ExportProvider"

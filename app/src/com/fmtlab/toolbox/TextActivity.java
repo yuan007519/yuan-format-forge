@@ -201,16 +201,7 @@ public class TextActivity extends Activity {
     }
 
     private void pickTextFile() {
-        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        i.addCategory(Intent.CATEGORY_OPENABLE);
-        i.setType("*/*");
-        String[] mimes = {"text/*", "application/json", "application/xml", "application/octet-stream"};
-        i.putExtra(Intent.EXTRA_MIME_TYPES, mimes);
-        try {
-            startActivityForResult(i, REQ_PICK_TXT);
-        } catch (Exception e) {
-            Ui.toast(this, "无法打开文件选择器");
-        }
+        Picker.launch(this, REQ_PICK_TXT, false);
     }
 
     private void loadTextFile(final Uri uri) {

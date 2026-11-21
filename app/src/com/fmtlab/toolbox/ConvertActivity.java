@@ -124,15 +124,7 @@ public class ConvertActivity extends Activity {
                     Ui.toast(ConvertActivity.this, "请先等当前转码结束或取消");
                     return;
                 }
-                Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                i.addCategory(Intent.CATEGORY_OPENABLE);
-                i.setType("*/*");
-                i.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"video/*", "audio/*", "*/*"});
-                try {
-                    startActivityForResult(i, REQ_PICK);
-                } catch (Exception e) {
-                    Ui.toast(ConvertActivity.this, "无法打开文件选择器");
-                }
+                Picker.launch(ConvertActivity.this, REQ_PICK, false);
             }
         });
 

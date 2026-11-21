@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg">#080D18</color>
+    <color name="surface">#121A2B</color>
+    <color name="surface_alt">#1A2438</color>
+    <color name="surface_sunken">#0D1526</color>
+    <color name="text_primary">#E8EEFB</color>
+    <color name="text_secondary">#9AA8C3</color>
+    <color name="text_tertiary">#6E7C97</color>
+    <color name="divider">#22304A</color>
+
+    <color name="brand_deep">#070C17</color>
+    <color name="brand_mid">#12295E</color>
+    <color name="brand">#3B82F6</color>
+    <color name="brand_soft">#16244A</color>
+
+    <color name="tile_text">#5EEAD4</color>
+    <color name="tile_text_bg">#123530</color>
+    <color name="tile_image">#FBBF24</color>
+    <color name="tile_image_bg">#35270F</color>
+    <color name="tile_pdf">#F87171</color>
+    <color name="tile_pdf_bg">#37161A</color>
+    <color name="tile_doc">#93B4FF</color>
+    <color name="tile_doc_bg">#152447</color>
+    <color name="tile_audio">#67E8F9</color>
+    <color name="tile_audio_bg">#0E2E38</color>
+    <color name="tile_code">#C4B5FD</color>
+    <color name="tile_code_bg">#251847</color>
+
+    <color name="tile_video">#E879F9</color>
+    <color name="tile_video_bg">#3A1136</color>
+
+    <color name="tile_convert">#4ADE80</color>
+    <color name="tile_convert_bg">#0F2E1C</color>
+
+    <color name="success">#34D399</color>
+    <color name="warning">#FBBF24</color>
+    <color name="danger">#F87171</color>
+    <color name="header_sub">#A8BCE6</color>
+    <color name="scrim">#000000</color>
+</resources>

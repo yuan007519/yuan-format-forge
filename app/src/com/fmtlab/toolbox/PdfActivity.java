@@ -1,0 +1,497 @@
+package com.fmtlab.toolbox;
+
+import android.app.Activity;
+import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.Rect;
+import android.graphics.pdf.PdfDocument;
+import android.graphics.pdf.PdfRenderer;
+import android.net.Uri;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.ParcelFileDescriptor;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.ProgressBar;
+import android.widget.TextView;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+/** PDF 转图片 / 图片合成 PDF */
+public class PdfActivity extends Activity {
+
+    private static final int REQ_PICK_PDF = 41;
+    private static final int REQ_PICK_IMG = 42;
+    private static final int REQ_TREE = 43;
+
+    private static final String[] MODE_LABELS = {"PDF 转图片", "图片 转 PDF"};
+    private static final String[] FMT_LABELS = {"PNG", "JPG"};
+    private static final String[] SCALE_LABELS = {"标准", "高清", "超清"};
+    private static final String[] PAPER_LABELS = {"跟随图片", "A4 竖版", "A4 横版"};
+
+    private TextView tvPdfInfo, tvImgInfo, tvPdfStatus;
+    private EditText etPageRange;
+    private LinearLayout pdfResultHost, cardPdfToImg, cardImgToPdf;
+    private ProgressBar pbPdf;
+    private Button btnPdfConvert, btnPdfSaveAll;
+    private Ui.Chips modeChips, fmtChips, dpiChips, paperChips;
+
+    private Uri pdfUri;
+    private String pdfName = "";
+    private final List<Uri> pickImages = new ArrayList<>();
+    private final List<File> results = new ArrayList<>();
+
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private ExecutorService exec;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_pdf);
+        exec = Executors.newSingleThreadExecutor();
+
+        ((TextView) findViewById(R.id.tvTitle)).setText("PDF 工具");
+        ((TextView) findViewById(R.id.tvSubtitle)).setText("逐页导出图片 · 多图合并成 PDF");
+        findViewById(R.id.btnBack).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                finish();
+            }
+        });
+
+        tvPdfInfo = (TextView) findViewById(R.id.tvPdfInfo);
+        tvImgInfo = (TextView) findViewById(R.id.tvImgInfo);
+        tvPdfStatus = (TextView) findViewById(R.id.tvPdfStatus);
+        etPageRange = (EditText) findViewById(R.id.etPageRange);
+        pdfResultHost = (LinearLayout) findViewById(R.id.pdfResultHost);
+        cardPdfToImg = (LinearLayout) findViewById(R.id.cardPdfToImg);
+        cardImgToPdf = (LinearLayout) findViewById(R.id.cardImgToPdf);
+        pbPdf = (ProgressBar) findViewById(R.id.pbPdf);
+        btnPdfConvert = (Button) findViewById(R.id.btnPdfConvert);
+        btnPdfSaveAll = (Button) findViewById(R.id.btnPdfSaveAll);
+
+        modeChips = new Ui.Chips(this, (LinearLayout) findViewById(R.id.modeChips), MODE_LABELS, 0)
+                .onChange(new Runnable() {
+                    @Override
+                    public void run() {
+                        boolean pdf2img = modeChips.selected() == 0;
+                        cardPdfToImg.setVisibility(pdf2img ? View.VISIBLE : View.GONE);
+                        cardImgToPdf.setVisibility(pdf2img ? View.GONE : View.VISIBLE);
+                        btnPdfConvert.setText(pdf2img ? "开始导出图片" : "开始生成 PDF");
+                    }
+                });
+        fmtChips = new Ui.Chips(this, (LinearLayout) findViewById(R.id.pdfFmtChips), FMT_LABELS, 0);
+        dpiChips = new Ui.Chips(this, (LinearLayout) findViewById(R.id.dpiChips), SCALE_LABELS, 0);
+        paperChips = new Ui.Chips(this, (LinearLayout) findViewById(R.id.paperChips), PAPER_LABELS, 1);
+
+        findViewById(R.id.btnPickPdf).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                i.addCategory(Intent.CATEGORY_OPENABLE);
+                i.setType("application/pdf");
+                startActivityForResult(i, REQ_PICK_PDF);
+            }
+        });
+
+        findViewById(R.id.btnPickImagesPdf).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                i.addCategory(Intent.CATEGORY_OPENABLE);
+                i.setType("image/*");
+                i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+                startActivityForResult(i, REQ_PICK_IMG);
+            }
+        });
+
+        btnPdfConvert.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (modeChips.selected() == 0) exportPdf();
+                else imagesToPdf();
+            }
+        });
+
+        btnPdfSaveAll.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (results.isEmpty()) {
+                    Ui.toast(PdfActivity.this, "还没有可保存的文件");
+                    return;
+                }
+                try {
+                    startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQ_TREE);
+                } catch (Exception e) {
+                    Ui.toast(PdfActivity.this, "无法打开文件夹选择器");
+                }
+            }
+        });
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (resultCode != RESULT_OK || data == null) return;
+        if (requestCode == REQ_PICK_PDF && data.getData() != null) {
+            pdfUri = data.getData();
+            pdfName = Ui.displayName(this, pdfUri);
+            tvPdfInfo.setText("已选择：" + pdfName + "\n" + Ui.size(sizeOf(pdfUri)) + " · 共 "
+                    + pageCount(pdfUri) + " 页");
+        } else if (requestCode == REQ_PICK_IMG) {
+            pickImages.clear();
+            if (data.getClipData() != null) {
+                for (int i = 0; i < data.getClipData().getItemCount(); i++) {
+                    pickImages.add(data.getClipData().getItemAt(i).getUri());
+                }
+            } else if (data.getData() != null) {
+                pickImages.add(data.getData());
+            }
+            StringBuilder sb = new StringBuilder("已选择 " + pickImages.size() + " 张图片：");
+            for (int i = 0; i < Math.min(3, pickImages.size()); i++) {
+                if (i > 0) sb.append("、");
+                sb.append(Ui.displayName(this, pickImages.get(i)));
+            }
+            if (pickImages.size() > 3) sb.append(" 等");
+            tvImgInfo.setText(sb.toString());
+        } else if (requestCode == REQ_TREE && data.getData() != null) {
+            final Uri tree = data.getData();
+            try {
+                getContentResolver().takePersistableUriPermission(tree,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            } catch (Exception ignored) {}
+            boolean ok = Ui.copyIntoTrees(this, tree, results, "application/octet-stream");
+            Ui.toast(this, ok ? "已全部保存到所选文件夹" : "保存失败，换个文件夹试试");
+        }
+    }
+
+    private long sizeOf(Uri uri) {
+        try {
+            android.database.Cursor c = getContentResolver().query(uri, null, null, null, null);
+            if (c != null) {
+                try {
+                    int idx = c.getColumnIndex(android.provider.OpenableColumns.SIZE);
+                    if (idx >= 0 && c.moveToFirst()) return c.getLong(idx);
+                } finally {
+                    c.close();
+                }
+            }
+        } catch (Exception ignored) {}
+        return 0;
+    }
+
+    private int pageCount(Uri uri) {
+        ParcelFileDescriptor pfd = null;
+        PdfRenderer r = null;
+        try {
+            pfd = getContentResolver().openFileDescriptor(uri, "r");
+            if (pfd == null) return 0;
+            r = new PdfRenderer(pfd);
+            return r.getPageCount();
+        } catch (Exception e) {
+            return 0;
+        } finally {
+            try { if (r != null) r.close(); } catch (Exception ignored) {}
+            try { if (pfd != null) pfd.close(); } catch (Exception ignored) {}
+        }
+    }
+
+    private Set<Integer> parsePages(String spec) {
+        Set<Integer> set = new HashSet<>();
+        if (spec == null || spec.trim().isEmpty()) return set;
+        for (String part : spec.split("[,，]")) {
+            String p = part.trim();
+            if (p.isEmpty()) continue;
+            if (p.contains("-")) {
+                String[] ab = p.split("-");
+                try {
+                    int a = Integer.parseInt(ab[0].trim());
+                    int b = Integer.parseInt(ab[1].trim());
+                    if (a > b) { int t = a; a = b; b = t; }
+                    for (int i = a; i <= b; i++) set.add(i);
+                } catch (Exception ignored) {}
+            } else {
+                try { set.add(Integer.parseInt(p)); } catch (Exception ignored) {}
+            }
+        }
+        return set;
+    }
+
+    private void exportPdf() {
+        if (pdfUri == null) {
+            Ui.toast(this, "请先选择 PDF 文件");
+            return;
+        }
+        final int fmt = fmtChips.selected();
+        final float scale = dpiChips.selected() == 0 ? 2f : (dpiChips.selected() == 1 ? 3f : 4f);
+        final Set<Integer> want = parsePages(etPageRange.getText().toString());
+
+        results.clear();
+        pdfResultHost.removeAllViews();
+        btnPdfSaveAll.setVisibility(View.GONE);
+        pbPdf.setVisibility(View.VISIBLE);
+        tvPdfStatus.setText("准备导出…");
+
+        exec.execute(new Runnable() {
+            @Override
+            public void run() {
+                ParcelFileDescriptor pfd = null;
+                PdfRenderer renderer = null;
+                int ok = 0;
+                try {
+                    pfd = getContentResolver().openFileDescriptor(pdfUri, "r");
+                    if (pfd == null) throw new Exception("无法打开 PDF");
+                    renderer = new PdfRenderer(pfd);
+                    int total = renderer.getPageCount();
+                    final int pageTotal = total;
+                    for (int i = 0; i < total; i++) {
+                        final int pageNo = i + 1;
+                        if (!want.isEmpty() && !want.contains(pageNo)) continue;
+                        handler.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                tvPdfStatus.setText("正在渲染第 " + pageNo + "/" + pageTotal + " 页…");
+                            }
+                        });
+                        PdfRenderer.Page page = renderer.openPage(i);
+                        try {
+                            int w = Math.max(1, (int) (page.getWidth() * scale));
+                            int h = Math.max(1, (int) (page.getHeight() * scale));
+                            Bitmap bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+                            bmp.eraseColor(Color.WHITE);
+                            page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+                            String ext = FMT_LABELS[fmt].toLowerCase();
+                            File out = new File(Ui.outDir(PdfActivity.this),
+                                    uniqueName(Ui.baseName(pdfName) + "_第" + pageNo + "页." + ext));
+                            FileOutputStream fos = new FileOutputStream(out);
+                            try {
+                                bmp.compress(fmt == 0 ? Bitmap.CompressFormat.PNG : Bitmap.CompressFormat.JPEG, 92, fos);
+                                fos.flush();
+                            } finally {
+                                fos.close();
+                            }
+                            bmp.recycle();
+                            results.add(out);
+                            ok++;
+                            final File fout = out;
+                            handler.post(new Runnable() {
+                                @Override
+                                public void run() {
+                                    addRow(fout, "PDF 第 " + pageNo + " 页");
+                                }
+                            });
+                        } finally {
+                            page.close();
+                        }
+                    }
+                } catch (final Exception e) {
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            tvPdfStatus.setText("导出失败：" + e.getMessage());
+                        }
+                    });
+                } finally {
+                    try { if (renderer != null) renderer.close(); } catch (Exception ignored) {}
+                    try { if (pfd != null) pfd.close(); } catch (Exception ignored) {}
+                }
+                final int done = ok;
+                handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        pbPdf.setVisibility(View.GONE);
+                        if (done > 0) {
+                            tvPdfStatus.setText("完成：共导出 " + done + " 页图片");
+                            btnPdfSaveAll.setVisibility(View.VISIBLE);
+                        } else if (tvPdfStatus.getText().toString().startsWith("正在")) {
+                            tvPdfStatus.setText("没有可导出的页面，请检查页码范围");
+                        }
+                    }
+                });
+            }
+        });
+    }
+
+    private void imagesToPdf() {
+        if (pickImages.isEmpty()) {
+            Ui.toast(this, "请先选择图片");
+            return;
+        }
+        final int paper = paperChips.selected();
+        results.clear();
+        pdfResultHost.removeAllViews();
+        btnPdfSaveAll.setVisibility(View.GONE);
+        pbPdf.setVisibility(View.VISIBLE);
+        tvPdfStatus.setText("准备合成…");
+
+        exec.execute(new Runnable() {
+            @Override
+            public void run() {
+                PdfDocument doc = new PdfDocument();
+                int ok = 0;
+                try {
+                    for (int i = 0; i < pickImages.size(); i++) {
+                        final int idx = i + 1;
+                        handler.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                tvPdfStatus.setText("正在处理第 " + idx + "/" + pickImages.size() + " 张…");
+                            }
+                        });
+                        Bitmap bmp = decode(pickImages.get(i));
+                        if (bmp == null) continue;
+                        try {
+                            int pw, ph;
+                            if (paper == 0) {
+                                pw = (int) (bmp.getWidth() * 0.75);
+                                ph = (int) (bmp.getHeight() * 0.75);
+                            } else if (paper == 1) {
+                                pw = 595; ph = 842;
+                            } else {
+                                pw = 842; ph = 595;
+                            }
+                            PdfDocument.PageInfo info = new PdfDocument.PageInfo.Builder(pw, ph, idx).create();
+                            PdfDocument.Page page = doc.startPage(info);
+                            android.graphics.Canvas canvas = page.getCanvas();
+                            canvas.drawColor(Color.WHITE);
+                            Rect src = new Rect(0, 0, bmp.getWidth(), bmp.getHeight());
+                            Rect dst;
+                            if (paper == 0) {
+                                dst = new Rect(0, 0, pw, ph);
+                            } else {
+                                int margin = 24;
+                                int availW = pw - margin * 2;
+                                int availH = ph - margin * 2;
+                                double s = Math.min((double) availW / bmp.getWidth(), (double) availH / bmp.getHeight());
+                                int dw = (int) (bmp.getWidth() * s);
+                                int dh = (int) (bmp.getHeight() * s);
+                                int left = (pw - dw) / 2;
+                                int top = (ph - dh) / 2;
+                                dst = new Rect(left, top, left + dw, top + dh);
+                            }
+                            Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+                            canvas.drawBitmap(bmp, src, dst, paint);
+                            doc.finishPage(page);
+                            ok++;
+                        } finally {
+                            bmp.recycle();
+                        }
+                    }
+                    String name = uniqueName("合并文档_" + new java.text.SimpleDateFormat("yyyyMMdd_HHmmss",
+                            java.util.Locale.US).format(new java.util.Date()) + ".pdf");
+                    File out = new File(Ui.outDir(PdfActivity.this), name);
+                    FileOutputStream fos = new FileOutputStream(out);
+                    try {
+                        doc.writeTo(fos);
+                        fos.flush();
+                    } finally {
+                        fos.close();
+                    }
+                    results.add(out);
+                    final File fout = out;
+                    final int pages = ok;
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            addRow(fout, pages + " 页 · " + Ui.size(fout.length()));
+                        }
+                    });
+                } catch (final Exception e) {
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            tvPdfStatus.setText("合成失败：" + e.getMessage());
+                        }
+                    });
+                } finally {
+                    doc.close();
+                }
+                final int done = ok;
+                handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        pbPdf.setVisibility(View.GONE);
+                        if (done > 0) {
+                            tvPdfStatus.setText("完成：已生成 " + done + " 页的 PDF");
+                            btnPdfSaveAll.setVisibility(View.VISIBLE);
+                        } else {
+                            tvPdfStatus.setText("合成失败，请检查图片格式");
+                        }
+                    }
+                });
+            }
+        });
+    }
+
+    private Bitmap decode(Uri uri) {
+        try {
+            BitmapFactory.Options o = new BitmapFactory.Options();
+            o.inJustDecodeBounds = true;
+            InputStream in = getContentResolver().openInputStream(uri);
+            try {
+                BitmapFactory.decodeStream(in, null, o);
+            } finally {
+                in.close();
+            }
+            int sample = 1;
+            while (Math.max(o.outWidth, o.outHeight) / (sample * 2) > 2400) sample *= 2;
+            BitmapFactory.Options o2 = new BitmapFactory.Options();
+            o2.inSampleSize = sample;
+            InputStream in2 = getContentResolver().openInputStream(uri);
+            try {
+                return BitmapFactory.decodeStream(in2, null, o2);
+            } finally {
+                in2.close();
+            }
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private String uniqueName(String name) {
+        File dir = Ui.outDir(this);
+        if (!new File(dir, name).exists()) return name;
+        String base = Ui.baseName(name);
+        String ext = Ui.ext(name);
+        for (int i = 2; i < 1000; i++) {
+            String n = base + "(" + i + ")." + ext;
+            if (!new File(dir, n).exists()) return n;
+        }
+        return base + "_" + System.currentTimeMillis() + "." + ext;
+    }
+
+    private void addRow(final File f, String meta) {
+        pdfResultHost.addView(Ui.resultRow(this, f, meta + " · " + Ui.size(f.length()),
+                new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        List<File> one = new ArrayList<>();
+                        one.add(f);
+                        Ui.shareFiles(PdfActivity.this, one, "PDF 工具输出");
+                    }
+                }));
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (exec != null) exec.shutdownNow();
+        handler.removeCallbacksAndMessages(null);
+    }
+}

@@ -1,0 +1,19 @@
+# 构建产物与本地环境
+*.iml
+.idea/
+.gradle/
+build/
+out/
+bin/
+gen/
+*.log
+
+# 物料（体积大，按 docs/构建说明.md 自行下载）
+*.aar
+*.jks
+*.keystore
+
+# 系统垃圾
+Thumbs.db
+desktop.ini
+.DS_Store

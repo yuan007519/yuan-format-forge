@@ -31,7 +31,7 @@ public class AudioActivity extends Activity {
 
     private static final int REQ_PICK = 61;
 
-    private static final String[] OUT_LABELS = {"WAV（PCM）", "M4A（音轨直拷）", "AAC（裸流）"};
+    private static final String[] OUT_LABELS = {"WAV", "M4A", "AAC 裸流"};
 
     private TextView tvMediaInfo, tvAudioStatus;
     private LinearLayout audioResultHost;

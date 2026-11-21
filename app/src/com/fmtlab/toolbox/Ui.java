@@ -13,6 +13,8 @@ import android.os.Build;
 import android.text.TextUtils;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewParent;
+import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -365,7 +367,36 @@ public final class Ui {
             this.host = host;
             this.labels = labels;
             this.selected = Math.max(0, Math.min(selected, labels.length - 1));
+            ensureScrollable(host);
             build();
+        }
+
+        /**
+         * 标签一多，横向 LinearLayout 会把最后一个挤成很窄的一条（文字竖排）。
+         * 这里把承载容器套进横向滚动容器，让每个标签保持 wrap_content 的自然宽度。
+         */
+        private void ensureScrollable(LinearLayout box) {
+            ViewParent p = box.getParent();
+            if (p instanceof HorizontalScrollView) {
+                box.setLayoutParams(new ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                return;
+            }
+            if (!(p instanceof ViewGroup)) return;
+            ViewGroup parent = (ViewGroup) p;
+            int index = parent.indexOfChild(box);
+            if (index < 0) return;
+            ViewGroup.LayoutParams lp = box.getLayoutParams();
+            HorizontalScrollView hsv = new HorizontalScrollView(act);
+            hsv.setHorizontalScrollBarEnabled(false);
+            hsv.setOverScrollMode(View.OVER_SCROLL_NEVER);
+            hsv.setFillViewport(false);
+            hsv.setClipToPadding(false);
+            parent.removeViewAt(index);
+            hsv.setLayoutParams(lp);
+            hsv.addView(box, new ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            parent.addView(hsv, index);
         }
 
         private void build() {

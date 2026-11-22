@@ -21,7 +21,7 @@ Android 端的本地文件格式转换工具。内置 FFmpeg 6.0，图片、PDF�
 | 万能转码 | FFmpeg 可解的常见音视频 | 14 种（MP4 H.264/H.265、MKV、MOV、AVI、WMV、FLV、WebM、MP3、M4A、AAC、WAV、FLAC、OGG） |
 | 编码工具箱 | 文本 | Base64 / URL / HEX / Unicode 双向转换 |
 
-文档转换只处理文字与表格内容，不保留版式。PDF 转 PPTX 是逐页图片版；PDF 转文本依赖 PDF 内的文字层，扫描件抽不出来。
+文档转换只处理文字与表格内容，不保留版式。PDF 转 PPTX 是逐页图片版；PDF 转文本依赖 PDF 内的文字层（中文 CID 字体走 ToUnicode 表），扫描件抽不出来。
 
 ## 下载
 
@@ -29,8 +29,8 @@ Release 页面提供两个包，功能相同，区别是内置的 FFmpeg 原生�
 
 | 文件 | 体积 | 说明 |
 |---|---|---|
-| `yuan-format-forge_1.5.1_arm64.apk` | 26.8 MB | 只含 arm64-v8a |
-| `yuan-format-forge_1.5.1_full.apk` | 54.3 MB | arm64-v8a + armeabi-v7a |
+| `yuan-format-forge_1.5.2_arm64.apk` | 26.9 MB | 只含 arm64-v8a |
+| `yuan-format-forge_1.5.2_full.apk` | 54.3 MB | arm64-v8a + armeabi-v7a |
 
 签名证书（自签名，与历史版本一致，可覆盖升级）：
 
@@ -46,6 +46,9 @@ SHA-256 646ee67e50f20131e315efb5d4654733da4f608173c103ae65f694597238f8b4
 |---|---|
 | ffmpeg-kit-full-gpl 6.0-2 | `https://mirrors.huaweicloud.com/repository/maven/com/arthenica/ffmpeg-kit-full-gpl/6.0-2/ffmpeg-kit-full-gpl-6.0-2.aar` |
 | smart-exception-java 0.2.1 | `https://mirrors.huaweicloud.com/repository/maven/com/arthenica/smart-exception-java/0.2.1/smart-exception-java-0.2.1.jar` |
+| smart-exception-common 0.2.1 | `https://mirrors.huaweicloud.com/repository/maven/com/arthenica/smart-exception-common/0.2.1/smart-exception-common-0.2.1.jar` |
+
+两个 smart-exception jar 必须一起进 classpath 与 d8，只带 `smart-exception-java` 会在真机上缺 `PackageLoader`，FFmpegKit 初始化失败。
 
 构建流程：
 

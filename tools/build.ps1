@@ -9,7 +9,7 @@ $out  = "$root\out"
 $env:JAVA_HOME = $jdk
 
 $ffJar = "$root\ffmpeg-kit\aar\classes.jar"
-$ffDep = "$root\ffmpeg-kit\smart-exception.jar"
+$ffDep = "$root\ffmpeg-kit\smart-exception.jar;$root\ffmpeg-kit\smart-exception-common.jar"
 
 New-Item -ItemType Directory -Force "$out\gen" | Out-Null
 New-Item -ItemType Directory -Force "$out\classes" | Out-Null
@@ -21,7 +21,7 @@ Get-ChildItem "$out\dex" -Filter *.dex -ErrorAction SilentlyContinue | Remove-It
 & "$bt\aapt2.exe" compile --dir "$proj\res" -o "$out\res.zip" 2>&1 | Out-File -Encoding utf8 "$out\aapt-compile.log"
 if ($LASTEXITCODE -ne 0) { "AAPT2 COMPILE FAILED"; exit 1 }
 
-& "$bt\aapt2.exe" link -o "$out\base.apk" -I $jar --manifest "$proj\AndroidManifest.xml" --java "$out\gen" --min-sdk-version 24 --target-sdk-version 34 --version-code 9 --version-name 1.5.1 --auto-add-overlay "$out\res.zip" 2>&1 | Out-File -Encoding utf8 "$out\aapt-link.log"
+& "$bt\aapt2.exe" link -o "$out\base.apk" -I $jar --manifest "$proj\AndroidManifest.xml" --java "$out\gen" --min-sdk-version 24 --target-sdk-version 34 --version-code 10 --version-name 1.5.2 --auto-add-overlay "$out\res.zip" 2>&1 | Out-File -Encoding utf8 "$out\aapt-link.log"
 if ($LASTEXITCODE -ne 0) { "AAPT2 LINK FAILED"; exit 1 }
 
 $cp = "$jar;$ffJar;$ffDep"
@@ -42,7 +42,7 @@ foreach ($abi in @("arm64-v8a", "armeabi-v7a")) {
 }
 
 & "$jdk\bin\jar.exe" cf "$out\classes.jar" -C "$out\classes" .
-& "$bt\d8.bat" --release --lib $jar --min-api 24 --output "$out\dex" "$out\classes.jar" $ffJar $ffDep 2>&1 | Out-File -Encoding utf8 "$out\d8.log"
+& "$bt\d8.bat" --release --lib $jar --min-api 24 --output "$out\dex" "$out\classes.jar" $ffJar "$root\ffmpeg-kit\smart-exception.jar" "$root\ffmpeg-kit\smart-exception-common.jar" 2>&1 | Out-File -Encoding utf8 "$out\d8.log"
 if ($LASTEXITCODE -ne 0) { "D8 FAILED"; exit 1 }
 
 python "$out\pkg.py" | Out-String | Out-File -Encoding utf8 "$out\pkg.log"

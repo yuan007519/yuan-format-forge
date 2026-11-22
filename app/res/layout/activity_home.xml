@@ -121,7 +121,7 @@
             android:layout_marginTop="10dp"
             android:layout_marginRight="22dp"
             android:layout_marginBottom="28dp"
-            android:text="v1.2 · 文本 / 图片 / PDF / 文档 / 音频 / 视频 / 万能转码 / 编码，全部在本机完成"
+            android:text="文本 / 图片 / PDF / 文档 / 音频 / 视频 / 万能转码 / 编码，全部在本机完成"
             android:textColor="@color/text_tertiary"
             android:textSize="11sp" />
     </LinearLayout>

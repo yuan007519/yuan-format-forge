@@ -3,7 +3,7 @@ package com.fmtlab.toolbox;
 /** App 内的法律声明与第三方许可文本（GPLv3 §5(d) 要求的 Appropriate Legal Notices） */
 public final class LicenseText {
 
-    public static final String VERSION_NAME = "1.5.1";
+    public static final String VERSION_NAME = "1.5.2";
     public static final String REPO_URL = "https://github.com/yuan007519/yuan-format-forge";
 
     private LicenseText() {}
@@ -16,6 +16,7 @@ public final class LicenseText {
                 + "v1.4 新增：字幕 SRT / VTT / ASS / SSA 互转；图片输出扩到 TIFF / TGA / QOI / ICO / PPM；"
                 + "音频 8 种输出、视频 4 种容器 + GIF + 抽帧 + 8 种音轨导出；文档矩阵新增 ODT / RTF / XLSX / EPUB 输出与 EPUB / ODF 输入；PDF 可抽文字层转 TXT / MD / HTML / DOCX。\n"
                 + "v1.5.1 修复：RTF 输入不再被判成老式二进制格式；PPTX 转 PDF 与逐页导图不再报 document is closed。\n"
+                + "v1.5.2 修复：FFmpeg 引擎在真机上因缺少依赖包无法启动，视频、音频、万能转码的 FFmpeg 相关格式现已可用；PDF 抽文本支持中文 CID 字体（读取 ToUnicode 表）；首页底部不再写死旧版本号。\n"
                 + "\n"
                 + "本应用全部转换都在手机本地完成：APK 未申请任何权限（包括联网权限），"
                 + "不联网、不上传、不读取与当前任务无关的文件。\n"

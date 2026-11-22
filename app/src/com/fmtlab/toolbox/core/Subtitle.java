@@ -28,7 +28,25 @@ public final class Subtitle {
     private static final Pattern TIME_VTT = TIME_SRT;
     private static final Pattern TIME_ASS = Pattern.compile(
             "(\\d+):(\\d{2}):(\\d{2})\\.(\\d{1,3})");
-    private static final Pattern TAG = Pattern.compile("\\{[^}]*}");
+
+    /** 去掉 ASS 样式标记 {...}。Android 的 ICU 正则不接受未转义的 }，这里直接按字符扫描。 */
+    private static String stripTags(String s) {
+        if (s == null || s.indexOf('{') < 0) return s;
+        StringBuilder sb = new StringBuilder(s.length());
+        int i = 0;
+        while (i < s.length()) {
+            char c = s.charAt(i);
+            if (c == '{') {
+                int close = s.indexOf('}', i + 1);
+                if (close < 0) break;
+                i = close + 1;
+            } else {
+                sb.append(c);
+                i++;
+            }
+        }
+        return sb.toString();
+    }
 
     private Subtitle() {}
 
@@ -110,7 +128,7 @@ public final class Subtitle {
             long st = assTime(parts[iStart].trim());
             long en = assTime(parts[iEnd].trim());
             if (st < 0 || en < 0) continue;
-            String text = TAG.matcher(parts[iText]).replaceAll("").replace("\\N", "\n").replace("\\n", "\n").trim();
+            String text = stripTags(parts[iText]).replace("\\N", "\n").replace("\\n", "\n").trim();
             if (text.isEmpty()) continue;
             out.add(new Cue(st, en, text));
         }
@@ -122,10 +140,24 @@ public final class Subtitle {
         return -1;
     }
 
+    /** 去掉 ASS 覆盖标记 {\an8} 之类；同样避开 ICU 对 } 的严格解析 */
+    private static String removeOverrideTags(String s) {
+        int idx = s.indexOf("{\\");
+        if (idx < 0) return s;
+        StringBuilder sb = new StringBuilder(s);
+        while (idx >= 0) {
+            int close = sb.indexOf("}", idx + 2);
+            if (close < 0) break;
+            sb.delete(idx, close + 1);
+            idx = sb.indexOf("{\\", idx);
+        }
+        return sb.toString();
+    }
+
     private static String cleanInline(String line) {
         String s = line;
         s = s.replaceAll("<[^>]+>", "");
-        s = s.replaceAll("\\{\\\\[^}]*}", "");
+        s = removeOverrideTags(s);
         s = s.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&");
         return s.trim();
     }

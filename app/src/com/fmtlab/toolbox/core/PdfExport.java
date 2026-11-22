@@ -85,15 +85,15 @@ public final class PdfExport {
                     if (idx >= lines.size()) break;
                 }
             }
+            FileOutputStream fos = new FileOutputStream(out);
+            try {
+                doc.writeTo(fos);
+                fos.flush();
+            } finally {
+                try { fos.close(); } catch (Exception ignored) {}
+            }
         } finally {
             doc.close();
-        }
-        FileOutputStream fos = new FileOutputStream(out);
-        try {
-            doc.writeTo(fos);
-            fos.flush();
-        } finally {
-            try { fos.close(); } catch (Exception ignored) {}
         }
         return pageNo;
     }

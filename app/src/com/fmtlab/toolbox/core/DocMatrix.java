@@ -38,7 +38,7 @@ public final class DocMatrix {
 
     public static boolean isLegacyBinary(String ext) {
         String e = ext == null ? "" : ext.toLowerCase();
-        return e.equals("doc") || e.equals("wps") || e.equals("wpt") || e.equals("rtf")
+        return e.equals("doc") || e.equals("wps") || e.equals("wpt")
                 || e.equals("xls") || e.equals("et") || e.equals("ett")
                 || e.equals("ppt") || e.equals("dps") || e.equals("dpt")
                 || e.equals("mobi") || e.equals("ofd");

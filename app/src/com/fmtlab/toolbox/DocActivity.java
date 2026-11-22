@@ -271,7 +271,7 @@ public class DocActivity extends Activity {
                     final String textContent = binary ? "" : readText(outFile);
                     final String previewText = binary
                             ? "已生成 " + out + " 文件：" + outFile.getName() + "\n" + Ui.size(outFile.length())
-                                    + "\n\n" + note + "\n\n（DOCX / PDF / EPUB 是二进制文件，点「保存到手机」或「分享」导出）"
+                                    + "\n\n" + note + "\n\n（这是二进制文件，预览不可读，点「另存为」或「分享」导出）"
                             : textContent;
                     handler.post(new Runnable() {
                         @Override

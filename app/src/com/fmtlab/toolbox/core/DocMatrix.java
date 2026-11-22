@@ -16,7 +16,7 @@ import java.util.List;
 public final class DocMatrix {
 
     public static final String[] TEXT_OUT = {"TXT", "Markdown", "HTML", "DOCX", "ODT", "RTF", "PDF", "EPUB"};
-    public static final String[] TABLE_OUT = {"CSV", "TSV", "HTML 表格", "Markdown 表格", "XLSX", "PDF", "JSON"};
+    public static final String[] TABLE_OUT = {"CSV", "TSV", "HTML 表格", "Markdown 表格", "XLSX", "ODS", "PDF", "JSON"};
 
     private DocMatrix() {}
 
@@ -26,7 +26,7 @@ public final class DocMatrix {
         return e.equals("docx") || e.equals("xlsx") || e.equals("pptx")
                 || e.equals("odt") || e.equals("ods") || e.equals("odp")
                 || e.equals("epub") || e.equals("html") || e.equals("htm")
-                || e.equals("md") || e.equals("markdown")
+                || e.equals("md") || e.equals("markdown") || e.equals("rtf")
                 || e.equals("txt") || e.equals("log") || e.equals("csv") || e.equals("tsv")
                 || e.equals("json") || e.equals("xml") || e.equals("yaml") || e.equals("yml");
     }
@@ -55,6 +55,7 @@ public final class DocMatrix {
         if (e.equals("epub")) return "电子书（按章节顺序取正文）";
         if (e.equals("html") || e.equals("htm")) return "网页";
         if (e.equals("md") || e.equals("markdown")) return "Markdown";
+        if (e.equals("rtf")) return "RTF 富文本";
         if (e.equals("csv")) return "CSV 表格";
         if (e.equals("tsv")) return "TSV 表格";
         if (e.equals("json")) return "JSON 文本";
@@ -69,6 +70,7 @@ public final class DocMatrix {
         if (e.equals("pptx")) return DocConverter.pptxToText(data);
         if (e.equals("odt") || e.equals("ods") || e.equals("odp")) return Odf.text(data);
         if (e.equals("epub")) return Epub.text(data);
+        if (e.equals("rtf")) return Rtf.text(data);
         if (e.equals("html") || e.equals("htm")) return Epub.htmlToText(new String(data, java.nio.charset.Charset.forName("UTF-8")));
         if (e.equals("md") || e.equals("markdown")) {
             String md = new String(data, java.nio.charset.Charset.forName("UTF-8"));
@@ -134,6 +136,10 @@ public final class DocMatrix {
         if (outLabel.equals("XLSX")) {
             XlsxWriter.write(out, rows == null ? parseCsv(text) : rows, base);
             return "Excel 工作簿（单表，首行表头）";
+        }
+        if (outLabel.equals("ODS")) {
+            Odf.writeSheet(out, rows == null ? parseCsv(text) : rows, base);
+            return "ODS 表格（OpenDocument 电子表格）";
         }
         if (outLabel.equals("PDF")) {
             PdfExport.slidesToPdf(out, toDeck((table && rows != null) ? toMarkdownTable(rows, base) : text, base));

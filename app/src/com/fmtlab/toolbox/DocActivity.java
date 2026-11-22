@@ -2,10 +2,14 @@ package com.fmtlab.toolbox;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.Color;
+import android.graphics.pdf.PdfRenderer;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.ParcelFileDescriptor;
 import android.text.TextUtils;
 import android.view.View;
 import android.widget.Button;
@@ -15,6 +19,8 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import com.fmtlab.toolbox.core.DocMatrix;
+import com.fmtlab.toolbox.core.PdfExport;
+import com.fmtlab.toolbox.core.PptxReader;
 import com.fmtlab.toolbox.core.TextCodec;
 
 import java.io.File;
@@ -31,7 +37,7 @@ public class DocActivity extends Activity {
 
     private TextView tvDocInfo, tvOutHint, tvDocStatus, tvPreview;
     private ScrollView svPreview;
-    private LinearLayout outChips, docActionRow;
+    private LinearLayout outChips, docActionRow, docResultHost;
     private ProgressBar pbDoc;
     private Button btnDocConvert;
 
@@ -68,6 +74,7 @@ public class DocActivity extends Activity {
         svPreview = (ScrollView) findViewById(R.id.svPreview);
         outChips = (LinearLayout) findViewById(R.id.outChips);
         docActionRow = (LinearLayout) findViewById(R.id.docActionRow);
+        docResultHost = (LinearLayout) findViewById(R.id.docResultHost);
         pbDoc = (ProgressBar) findViewById(R.id.pbDoc);
         btnDocConvert = (Button) findViewById(R.id.btnDocConvert);
 
@@ -154,6 +161,8 @@ public class DocActivity extends Activity {
             String ext = Ui.ext(docName);
             resultText = "";
             resultFile = null;
+            docResultHost.removeAllViews();
+            docResultHost.setVisibility(View.GONE);
             tvPreview.setText("");
             svPreview.setVisibility(View.GONE);
             tvDocInfo.setText("已选择：" + docName + "（." + ext + "）");
@@ -188,7 +197,13 @@ public class DocActivity extends Activity {
 
     private String[] outputsFor(String ext) {
         if (!DocMatrix.readable(ext)) return new String[0];
-        return DocMatrix.isTable(ext) ? DocMatrix.TABLE_OUT : DocMatrix.TEXT_OUT;
+        String[] base = DocMatrix.isTable(ext) ? DocMatrix.TABLE_OUT : DocMatrix.TEXT_OUT;
+        if (!"pptx".equals(ext)) return base;
+        List<String> all = new ArrayList<>();
+        for (String s : base) all.add(s);
+        all.add("PNG 图片");
+        all.add("JPG 图片");
+        return all.toArray(new String[0]);
     }
 
     private static String extOf(String label) {
@@ -202,6 +217,9 @@ public class DocActivity extends Activity {
         if ("ODT".equals(label)) return "odt";
         if ("RTF".equals(label)) return "rtf";
         if ("XLSX".equals(label)) return "xlsx";
+        if ("ODS".equals(label)) return "ods";
+        if ("PNG 图片".equals(label)) return "png";
+        if ("JPG 图片".equals(label)) return "jpg";
         if ("PDF".equals(label)) return "pdf";
         if ("EPUB".equals(label)) return "epub";
         return "txt";
@@ -209,7 +227,11 @@ public class DocActivity extends Activity {
 
     private static boolean isBinaryOut(String label) {
         return "DOCX".equals(label) || "PDF".equals(label) || "EPUB".equals(label)
-                || "ODT".equals(label) || "XLSX".equals(label);
+                || "ODT".equals(label) || "XLSX".equals(label) || "ODS".equals(label);
+    }
+
+    private static boolean isSlideImage(String label) {
+        return "PNG 图片".equals(label) || "JPG 图片".equals(label);
     }
 
     private void convert() {
@@ -227,12 +249,18 @@ public class DocActivity extends Activity {
         btnDocConvert.setEnabled(false);
         svPreview.setVisibility(View.GONE);
         docActionRow.setVisibility(View.GONE);
+        docResultHost.removeAllViews();
+        docResultHost.setVisibility(View.GONE);
         tvDocStatus.setText("正在读取并转换…");
 
         exec.execute(new Runnable() {
             @Override
             public void run() {
                 try {
+                    if (isSlideImage(out)) {
+                        exportSlides(out);
+                        return;
+                    }
                     final byte[] bytes = Ui.readBytes(DocActivity.this, docUri);
                     final String outExt = extOf(out);
                     final File outFile = new File(Ui.outDir(DocActivity.this),
@@ -275,6 +303,95 @@ public class DocActivity extends Activity {
                 }
             }
         });
+    }
+
+    /** PPTX 逐页导图：先用现有排版引擎出 A4 PDF，再逐页渲染成 PNG / JPG */
+    private void exportSlides(String label) throws Exception {
+        final String outExt = extOf(label);
+        final Bitmap.CompressFormat cf = "png".equals(outExt)
+                ? Bitmap.CompressFormat.PNG : Bitmap.CompressFormat.JPEG;
+        byte[] bytes = Ui.readBytes(DocActivity.this, docUri);
+        PptxReader.Deck deck = PptxReader.read(bytes);
+        if (deck.slides.isEmpty()) throw new Exception("这个 PPTX 里没有可导出的幻灯片");
+
+        final File tmpPdf = new File(getCacheDir(), "slides_" + System.currentTimeMillis() + ".pdf");
+        PdfExport.slidesToPdf(tmpPdf, deck);
+
+        ParcelFileDescriptor pfd = null;
+        PdfRenderer renderer = null;
+        int ok = 0;
+        try {
+            pfd = ParcelFileDescriptor.open(tmpPdf, ParcelFileDescriptor.MODE_READ_ONLY);
+            renderer = new PdfRenderer(pfd);
+            int total = renderer.getPageCount();
+            for (int i = 0; i < total; i++) {
+                final int pageNo = i + 1;
+                handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        tvDocStatus.setText("正在导出第 " + pageNo + "/" + total + " 张…");
+                    }
+                });
+                PdfRenderer.Page page = renderer.openPage(i);
+                try {
+                    int w = Math.max(1, (int) (page.getWidth() * 2));
+                    int h = Math.max(1, (int) (page.getHeight() * 2));
+                    Bitmap bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+                    bmp.eraseColor(Color.WHITE);
+                    page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+                    File out = new File(Ui.outDir(this), uniqueName(
+                            Ui.baseName(docName) + "_第" + pageNo + "页." + outExt));
+                    java.io.FileOutputStream fos = new java.io.FileOutputStream(out);
+                    try {
+                        bmp.compress(cf, 92, fos);
+                        fos.flush();
+                    } finally {
+                        fos.close();
+                    }
+                    bmp.recycle();
+                    ok++;
+                    final File fout = out;
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            addResultRow(fout);
+                        }
+                    });
+                } finally {
+                    page.close();
+                }
+            }
+        } finally {
+            try { if (renderer != null) renderer.close(); } catch (Exception ignored) {}
+            try { if (pfd != null) pfd.close(); } catch (Exception ignored) {}
+            if (tmpPdf.exists()) tmpPdf.delete();
+        }
+        final int done = ok;
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                pbDoc.setVisibility(View.GONE);
+                btnDocConvert.setEnabled(true);
+                docResultHost.setVisibility(View.VISIBLE);
+                if (done > 0) {
+                    tvDocStatus.setText("已导出 " + done + " 张 " + label + "（保存在应用目录，可分享或另存）");
+                } else {
+                    tvDocStatus.setText("没有导出任何图片");
+                }
+            }
+        });
+    }
+
+    private void addResultRow(final File f) {
+        docResultHost.setVisibility(View.VISIBLE);
+        docResultHost.addView(Ui.resultRow(this, f, Ui.size(f.length()), new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                List<File> one = new ArrayList<>();
+                one.add(f);
+                Ui.shareFiles(DocActivity.this, one, "文档转换结果");
+            }
+        }));
     }
 
     private String readText(File f) {

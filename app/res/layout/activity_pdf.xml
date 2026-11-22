@@ -140,6 +140,35 @@
                         android:orientation="horizontal" />
                 </LinearLayout>
 
+                <LinearLayout
+                    android:id="@+id/pdfTextOptions"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:text="文本输出格式"
+                        style="@style/CaptionText" />
+
+                    <LinearLayout
+                        android:id="@+id/pdfTextOutChips"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:orientation="horizontal" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="只抽取文字层，不还原版式；扫描件、图片型 PDF 里没有文字层，抽取会失败，请改用「PDF 转图片」。"
+                        style="@style/CaptionText" />
+                </LinearLayout>
+
                 <TextView
                     android:id="@+id/tvPptxNote"
                     android:layout_width="match_parent"

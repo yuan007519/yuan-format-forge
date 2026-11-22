@@ -117,4 +117,66 @@ public final class Odf {
         entries.put("META-INF/manifest.xml", manifest.getBytes(java.nio.charset.Charset.forName("UTF-8")));
         Ooxml.writeZip(out, entries);
     }
+
+    /** 二维表格 → .ods：单工作表，字符串单元格，LibreOffice / WPS / Excel 可打开 */
+    public static void writeSheet(java.io.File out, java.util.List<String[]> rows, String sheetName)
+            throws IOException {
+        int cols = 0;
+        for (String[] r : rows) cols = Math.max(cols, r.length);
+        if (cols == 0) cols = 1;
+        String name = (sheetName == null || sheetName.trim().isEmpty()) ? "Sheet1" : sheetName.trim();
+        if (name.length() > 31) name = name.substring(0, 31);
+
+        StringBuilder body = new StringBuilder();
+        body.append("<table:table table:name=\"").append(Ooxml.esc(name)).append("\">");
+        body.append("<table:table-column table:style-name=\"co1\" table:number-columns-repeated=\"")
+                .append(cols).append("\"/>");
+        for (String[] row : rows) {
+            body.append("<table:table-row>");
+            for (int c = 0; c < cols; c++) {
+                String v = c < row.length && row[c] != null ? row[c] : "";
+                body.append("<table:table-cell office:value-type=\"string\"><text:p>")
+                        .append(Ooxml.esc(v))
+                        .append("</text:p></table:table-cell>");
+            }
+            body.append("</table:table-row>");
+        }
+        body.append("</table:table>");
+
+        String content = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                + "<office:document-content"
+                + " xmlns:office=\"urn:oasis:names:tc:opendocument:xmlns:office:1.0\""
+                + " xmlns:text=\"urn:oasis:names:tc:opendocument:xmlns:text:1.0\""
+                + " xmlns:table=\"urn:oasis:names:tc:opendocument:xmlns:table:1.0\""
+                + " xmlns:style=\"urn:oasis:names:tc:opendocument:xmlns:style:1.0\""
+                + " xmlns:fo=\"urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0\""
+                + " office:version=\"1.3\">"
+                + "<office:body><office:spreadsheet>" + body + "</office:spreadsheet></office:body>"
+                + "</office:document-content>";
+        String styles = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                + "<office:document-styles"
+                + " xmlns:office=\"urn:oasis:names:tc:opendocument:xmlns:office:1.0\""
+                + " xmlns:style=\"urn:oasis:names:tc:opendocument:xmlns:style:1.0\""
+                + " xmlns:table=\"urn:oasis:names:tc:opendocument:xmlns:table:1.0\""
+                + " xmlns:fo=\"urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0\""
+                + " office:version=\"1.3\"><office:styles>"
+                + "<style:style style:name=\"co1\" style:family=\"table-column\">"
+                + "<style:table-column-properties style:column-width=\"2.8cm\"/>"
+                + "</style:style></office:styles></office:document-styles>";
+        String manifest = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                + "<manifest:manifest xmlns:manifest=\"urn:oasis:names:tc:opendocument:xmlns:manifest:1.0\""
+                + " manifest:version=\"1.3\">"
+                + "<manifest:file-entry manifest:full-path=\"/\" manifest:media-type=\"application/vnd.oasis.opendocument.spreadsheet\"/>"
+                + "<manifest:file-entry manifest:full-path=\"content.xml\" manifest:media-type=\"text/xml\"/>"
+                + "<manifest:file-entry manifest:full-path=\"styles.xml\" manifest:media-type=\"text/xml\"/>"
+                + "</manifest:manifest>";
+
+        java.util.Map<String, byte[]> entries = new java.util.LinkedHashMap<String, byte[]>();
+        entries.put("mimetype", "application/vnd.oasis.opendocument.spreadsheet"
+                .getBytes(java.nio.charset.Charset.forName("UTF-8")));
+        entries.put("content.xml", content.getBytes(java.nio.charset.Charset.forName("UTF-8")));
+        entries.put("styles.xml", styles.getBytes(java.nio.charset.Charset.forName("UTF-8")));
+        entries.put("META-INF/manifest.xml", manifest.getBytes(java.nio.charset.Charset.forName("UTF-8")));
+        Ooxml.writeZip(out, entries);
+    }
 }

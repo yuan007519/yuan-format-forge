@@ -79,7 +79,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="WAV：解码成 PCM 16bit，兼容性最好；M4A：原样拷贝 AAC 音轨，不重编码、最快；AAC：导出裸流，给剪辑软件或播放器用。"
+                    android:text="WAV：解码成 PCM 16bit，兼容性最好；M4A / AAC：原样或重编 AAC；MP3 / FLAC / OGG / OPUS / WMA 由内置 FFmpeg 输出。"
                     style="@style/CaptionText" />
             </LinearLayout>
 

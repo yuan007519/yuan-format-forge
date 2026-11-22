@@ -7,19 +7,21 @@
     <string name="feat_text_title">文本乱码修复</string>
     <string name="feat_text_desc">自动识别编码，修复 “浣犲ソ” 这类乱码</string>
     <string name="feat_image_title">图片格式转换</string>
-    <string name="feat_image_desc">PNG / JPG / WEBP / BMP 互转，压缩与缩放</string>
+    <string name="feat_image_desc">PNG / JPG / WEBP / BMP / TIFF / TGA / QOI / ICO / PPM 互转，压缩与缩放</string>
     <string name="feat_pdf_title">PDF 工具</string>
-    <string name="feat_pdf_desc">PDF 转图片、多张图片合成 PDF</string>
+    <string name="feat_pdf_desc">转图片 · 图片合 PDF · PDF ⇄ PPTX · 抽文字出 TXT / MD / HTML / DOCX</string>
     <string name="feat_doc_title">文档转换</string>
-    <string name="feat_doc_desc">DOCX / XLSX / PPTX / HTML / MD 互转</string>
+    <string name="feat_doc_desc">Word / Excel / PPT / ODF / EPUB / 网页 / MD / CSV / JSON 互转，可出 DOCX / XLSX / ODS / ODT / RTF / PDF / EPUB，PPTX 可逐页导 PNG</string>
     <string name="feat_audio_title">音频提取</string>
-    <string name="feat_audio_desc">视频提取音频、转 WAV / M4A / AAC</string>
+    <string name="feat_audio_desc">视频抽音轨，转 WAV / M4A / AAC / MP3 / FLAC / OGG / OPUS / WMA</string>
     <string name="feat_video_title">视频工具</string>
-    <string name="feat_video_desc">MP4 / WebM 换壳、转 GIF、一键抽帧</string>
+    <string name="feat_video_desc">MP4 / WebM / MKV / MOV 换壳，GIF、抽帧与 8 种音轨导出</string>
     <string name="feat_convert_title">万能转码</string>
     <string name="feat_convert_desc">内置 FFmpeg，AVI / WMV / RMVB 全格式互转</string>
     <string name="feat_codec_title">编码工具箱</string>
     <string name="feat_codec_desc">Base64 / URL / Hex / Unicode 互转</string>
+    <string name="feat_sub_title">字幕转换</string>
+    <string name="feat_sub_desc">SRT / VTT / ASS / SSA 互转，另可导出纯文本</string>
     <string name="feat_about_title">关于与许可</string>
     <string name="feat_about_desc">版本信息 · GPLv3 声明 · 第三方组件 · 隐私</string>
 

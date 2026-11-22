@@ -60,7 +60,7 @@ GPLv3 §6 要求分发目标代码时提供“对应源码（Corresponding Sourc
 
 ## 5. 未使用的第三方资源
 
-- **图标**：应用内 31 个图标全部为本项目自绘 `vector drawable`（`app/src/main/res/drawable/ic_*.xml`），未使用 Material Icons、Font Awesome 等第三方图标集。
+- **图标**：应用内图标均为本项目自绘 `vector drawable`（`app/res/drawable/ic_*.xml`），未使用 Material Icons、Font Awesome 等第三方图标集。
 - **字体**：只使用 Android 系统自带字体（`sans-serif` / `sans-serif-medium`），未打包任何 `.ttf` / `.otf`。
 - **图片 / 音效 / 模板**：无。
 - **网络与统计 SDK**：无。APK 未声明任何 `uses-permission`，包括 `INTERNET`。
@@ -79,5 +79,4 @@ GPLv3 §6 要求分发目标代码时提供“对应源码（Corresponding Sourc
 
 ---
 
-如果你分发本应用的 APK，请把本文件与 `LICENSE` 一起随包提供；应用内「关于与许可」页
-（首页第 9 张卡片）也展示了同样的信息。
+分发本应用的 APK 时，请把本文件与 `LICENSE` 一起随包提供。应用内「关于与许可」页展示了同样的信息。

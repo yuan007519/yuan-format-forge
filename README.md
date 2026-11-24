@@ -21,7 +21,7 @@ Android 端的本地文件格式转换工具。内置 FFmpeg 6.0，图片、PDF�
 | 万能转码 | FFmpeg 可解的常见音视频 | 14 种（MP4 H.264/H.265、MKV、MOV、AVI、WMV、FLV、WebM、MP3、M4A、AAC、WAV、FLAC、OGG） |
 | 编码工具箱 | 文本 | Base64 / URL / HEX / Unicode 双向转换 |
 
-文档转换只处理文字与表格内容，不保留版式。PDF 转 DOCX 例外：按 PDF 页面坐标把文字、图片、表格线放到对应位置，文字仍可编辑；扫描件或字体缺少 Unicode 映射时退回按页嵌图的图片版。PDF 转 PPTX 是逐页图片版；PDF 转文本依赖 PDF 内的文字层（中文 CID 字体走 ToUnicode 表，简单字体走 /Encoding /Differences）。
+文档转换只处理文字和表格，不保留版式。PDF 转 DOCX 是个例外：文字按 PDF 里的坐标摆放，图片和表格线也在原位，导出后文字仍可编辑；扫描件，或者字体缺 Unicode 映射时，会退回每页一张图的图片版。PDF 转 PPTX 同样是逐页图片；PDF 转文本要有文字层，中文 CID 字体读 ToUnicode 表，简单字体读 /Encoding /Differences。
 
 ## 下载
 
@@ -113,4 +113,5 @@ docs/                    使用说明、构建说明
 GPL-3.0-or-later。内置 ffmpeg-kit-full-gpl，包含 x264、x265，因此整体按 GPL 分发。第三方组件与上游源码地址见 `THIRD_PARTY_NOTICES.md`。
 
 H.264 / H.265 涉及专利池授权，本项目未取得许可，请勿用于商业分发。本项目与「格式工厂 / FormatFactory」无关。
+
 

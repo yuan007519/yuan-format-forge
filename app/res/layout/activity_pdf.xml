@@ -165,7 +165,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
-                        android:text="只抽取文字层，不还原版式；扫描件、图片型 PDF 里没有文字层，抽取会失败，请改用「PDF 转图片」。"
+                        android:text="抽取文字层，不还原版式。选 DOCX 时，扫描件或字体缺少编码表会自动改成按页嵌图的图片版 Word；要纯图片请用「PDF 转图片」。"
                         style="@style/CaptionText" />
                 </LinearLayout>
 

@@ -3,6 +3,7 @@ package com.fmtlab.toolbox.core;
 import java.io.File;
 import java.io.IOException;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /** 纯文本 → docx（Word 2007 起的最小可用包：一个正文部件 + 一套基础样式）。 */
@@ -13,10 +14,72 @@ public final class DocxWriter {
     public static void write(File out, String text, String title) throws IOException {
         String body = paragraphsXml(text);
         Map<String, byte[]> entries = new LinkedHashMap<String, byte[]>();
-        entries.put("[Content_Types].xml", contentTypes());
+        entries.put("[Content_Types].xml", contentTypes(false));
         entries.put("_rels/.rels", rootRels());
         entries.put("word/document.xml", document(body));
         entries.put("word/_rels/document.xml.rels", docRels());
+        entries.put("word/styles.xml", styles());
+        entries.put("docProps/core.xml", core(title));
+        entries.put("docProps/app.xml", app());
+        Ooxml.writeZip(out, entries);
+    }
+
+    /**
+     * 每页一张图的 Word（用于扫描件、字体缺编码表的 PDF）。
+     * sizes 是每张图的像素宽高，按 A4 正文区域等比缩放。
+     */
+    public static void writeImages(File out, List<File> images, List<int[]> sizes, String title)
+            throws IOException {
+        if (images == null || images.isEmpty()) throw new IOException("没有可写入的页面图片");
+        // A4 正文区域：11906×16838 twip，页边距 1134 twip；1 twip = 635 EMU
+        final int contentW = (11906 - 1134 * 2) * 635;
+        final int contentH = (16838 - 1134 * 2) * 635;
+
+        StringBuilder body = new StringBuilder();
+        Map<String, byte[]> entries = new LinkedHashMap<String, byte[]>();
+        StringBuilder rels = new StringBuilder();
+        rels.append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n")
+            .append("<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">")
+            .append("<Relationship Id=\"rIdStyles\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/>");
+
+        for (int i = 0; i < images.size(); i++) {
+            File img = images.get(i);
+            byte[] data = readAll(img);
+            int[] wh = sizes != null && i < sizes.size() ? sizes.get(i) : null;
+            int pw = wh != null && wh[0] > 0 ? wh[0] : 1000;
+            int ph = wh != null && wh[1] > 0 ? wh[1] : 1414;
+            long cx = contentW;
+            long cy = (long) Math.round((double) contentW * ph / pw);
+            if (cy > contentH) {
+                cy = contentH;
+                cx = (long) Math.round((double) contentH * pw / ph);
+            }
+            int rid = i + 1;
+            entries.put("word/media/image" + rid + ".png", data);
+            rels.append("<Relationship Id=\"rIdImg").append(rid)
+                .append("\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"media/image")
+                .append(rid).append(".png\"/>");
+            body.append("<w:p><w:pPr><w:jc w:val=\"center\"/><w:spacing w:after=\"0\"/></w:pPr><w:r><w:drawing>")
+                .append("<wp:inline distT=\"0\" distB=\"0\" distL=\"0\" distR=\"0\">")
+                .append("<wp:extent cx=\"").append(cx).append("\" cy=\"").append(cy).append("\"/>")
+                .append("<wp:docPr id=\"").append(rid).append("\" name=\"Page ").append(rid).append("\"/>")
+                .append("<a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">")
+                .append("<pic:pic><pic:nvPicPr><pic:cNvPr id=\"").append(rid).append("\" name=\"image")
+                .append(rid).append(".png\"/><pic:cNvPicPr/></pic:nvPicPr>")
+                .append("<pic:blipFill><a:blip r:embed=\"rIdImg").append(rid).append("\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>")
+                .append("<pic:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"").append(cx).append("\" cy=\"")
+                .append(cy).append("\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></pic:spPr>")
+                .append("</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>");
+            if (i + 1 < images.size()) {
+                body.append("<w:p><w:r><w:br w:type=\"page\"/></w:r></w:p>");
+            }
+        }
+        rels.append("</Relationships>");
+
+        entries.put("[Content_Types].xml", contentTypes(true));
+        entries.put("_rels/.rels", rootRels());
+        entries.put("word/document.xml", document(body.toString()));
+        entries.put("word/_rels/document.xml.rels", rels.toString().getBytes(java.nio.charset.Charset.forName("UTF-8")));
         entries.put("word/styles.xml", styles());
         entries.put("docProps/core.xml", core(title));
         entries.put("docProps/app.xml", app());
@@ -44,11 +107,31 @@ public final class DocxWriter {
         return sb.toString();
     }
 
-    private static byte[] contentTypes() {
+    private static byte[] readAll(File f) throws IOException {
+        java.io.FileInputStream in = new java.io.FileInputStream(f);
+        try {
+            byte[] buf = new byte[(int) Math.max(1, f.length())];
+            int off = 0;
+            while (off < buf.length) {
+                int n = in.read(buf, off, buf.length - off);
+                if (n <= 0) break;
+                off += n;
+            }
+            return buf;
+        } finally {
+            try { in.close(); } catch (Exception ignored) {}
+        }
+    }
+
+    private static byte[] contentTypes(boolean withPng) {
+        String png = withPng
+                ? "<Default Extension=\"png\" ContentType=\"image/png\"/>"
+                : "";
         return ("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"
                 + "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">"
                 + "<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>"
                 + "<Default Extension=\"xml\" ContentType=\"application/xml\"/>"
+                + png
                 + "<Override PartName=\"/word/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml\"/>"
                 + "<Override PartName=\"/word/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml\"/>"
                 + "<Override PartName=\"/docProps/core.xml\" ContentType=\"application/vnd.openxmlformats-package.core-properties+xml\"/>"
@@ -68,7 +151,10 @@ public final class DocxWriter {
     private static byte[] document(String body) {
         String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n"
                 + "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
-                + "xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">"
+                + "xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" "
+                + "xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" "
+                + "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" "
+                + "xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">"
                 + "<w:body>" + body
                 + "<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/>"
                 + "<w:pgMar w:top=\"1134\" w:right=\"1134\" w:bottom=\"1134\" w:left=\"1134\"/></w:sectPr>"

@@ -12,26 +12,57 @@ import java.util.regex.Pattern;
 import java.util.zip.Inflater;
 
 /**
- * PDF 文本抽取（尽力而为）：解开 Flate 压缩流，按 Tj / TJ 顺序取字符串。
- * 简单字体直接按字节解码；中文 PDF 常见的 CID 字体则先读 /ToUnicode CMap，
- * 把两字节编码映射回 Unicode，再做输出。取不到映射时退回原样输出。
+ * PDF 文本抽取（尽力而为）。
+ * <p>
+ * 支持：Flate 压缩流、对象流（/ObjStm）、字体字典间接引用、/ToUnicode CMap、
+ * 简单字体的 /Encoding /Differences 字形名映射。取不到任何映射时不伪造字符，
+ * 而是通过 {@link #extractInfo(byte[])} 报出“有多少字符是猜出来的”，调用方据此决定
+ * 是否退回图片版输出。
  */
 public final class PdfText {
 
     private static final Charset LATIN = Charset.forName("ISO-8859-1");
     private static final Charset UTF8 = Charset.forName("UTF-8");
     private static final Charset UTF16BE = Charset.forName("UTF-16BE");
+    private static final Charset WIN1252 = charsetOrLatin("windows-1252");
 
     private static final Pattern OBJ_HEAD = Pattern.compile("(\\d+)\\s+\\d+\\s+obj");
-    private static final Pattern FONT_DICT = Pattern.compile("/Font\\s*<<(.+?)>>", Pattern.DOTALL);
+    private static final Pattern FONT_INLINE = Pattern.compile("/Font\\s*<<(.+?)>>", Pattern.DOTALL);
+    private static final Pattern FONT_REF = Pattern.compile("/Font\\s+(\\d+)\\s+0\\s+R");
     private static final Pattern FONT_ENTRY = Pattern.compile("/\\s*([^\\s/<>\\[\\]]+)\\s+(\\d+)\\s+0\\s+R");
     private static final Pattern TO_UNICODE = Pattern.compile("/ToUnicode\\s+(\\d+)\\s+0\\s+R");
     private static final Pattern BF_CHAR = Pattern.compile("<([0-9A-Fa-f]+)>\\s*<([0-9A-Fa-f]+)>");
     private static final Pattern BF_RANGE = Pattern.compile("<([0-9A-Fa-f]+)>\\s*<([0-9A-Fa-f]+)>\\s*(<[0-9A-Fa-f]+>|\\[[^\\]]*\\])");
+    private static final Pattern ENCODING_INLINE = Pattern.compile("/Encoding\\s*<<(.+?)>>", Pattern.DOTALL);
+    private static final Pattern ENCODING_NAME = Pattern.compile("/Encoding\\s*/([A-Za-z0-9\\-]+)");
+    private static final Pattern BASE_ENCODING = Pattern.compile("/BaseEncoding\\s*/([A-Za-z0-9\\-]+)");
+    private static final Pattern DIFFERENCES = Pattern.compile("/Differences\\s*\\[(.*?)\\]", Pattern.DOTALL);
 
     private PdfText() {}
 
-    /** 一个字体的 ToUnicode 映射：编码字节数 + 编码到 Unicode 的对照表 */
+
+    /** 抽取结果：文本 + 可信度统计 */
+    public static final class Extracted {
+        public final String text;
+        /** 靠 UTF-8 / Latin-1 猜测出来的字符数 */
+        public final int rawChars;
+        public final int chars;
+        /** 页数（能识别出的内容流数量） */
+        public final int pages;
+        Extracted(String text, int rawChars, int chars, int pages) {
+            this.text = text;
+            this.rawChars = rawChars;
+            this.chars = chars;
+            this.pages = pages;
+        }
+
+        /** 猜出来的字符不超过一半，才认为文字可用 */
+        public boolean reliable() {
+            return chars > 0 && rawChars * 2 <= chars;
+        }
+    }
+
+    /** 一个字体的映射：编码字节数 + 编码到 Unicode 的对照表 */
     private static final class CMap {
         int codeLen = 2;
         final Map<Integer, String> map = new HashMap<Integer, String>();
@@ -43,17 +74,33 @@ public final class PdfText {
         Tok(char type, String val) { this.type = type; this.val = val; }
     }
 
+    private static final class Count {
+        int chars;
+        int raw;
+    }
+
     public static String extract(byte[] pdf) throws IOException {
+        return extractInfo(pdf).text;
+    }
+
+    public static Extracted extractInfo(byte[] pdf) throws IOException {
         if (pdf.length < 5 || pdf[0] != '%' || pdf[1] != 'P' || pdf[2] != 'D' || pdf[3] != 'F') {
             throw new IOException("不是有效的 PDF 文件");
         }
-        Map<String, CMap> fontMaps = fontMaps(objects(pdf));
+        Map<String, byte[]> objs = objects(pdf);
+        Map<String, CMap> fontMaps = fontMaps(objs);
         List<byte[]> streams = streams(pdf);
         StringBuilder out = new StringBuilder();
+        Count total = new Count();
+        int pages = 0;
         for (byte[] s : streams) {
             String content = new String(s, LATIN);
-            if (!content.contains("Tj") && !content.contains("TJ")) continue;
-            String text = scan(content, fontMaps);
+            if (!content.contains("Tj") && !content.contains("TJ") && !content.contains("'")) continue;
+            pages++;
+            Count c = new Count();
+            String text = scan(content, fontMaps, c);
+            total.chars += c.chars;
+            total.raw += c.raw;
             if (!text.trim().isEmpty()) {
                 if (out.length() > 0) out.append("\n\n");
                 out.append(text.trim());
@@ -63,12 +110,13 @@ public final class PdfText {
         if (result.isEmpty()) {
             throw new IOException("这个 PDF 里没有可直接抽取的文本层（可能是扫描件或字体缺少编码表），请改用 PDF 转图片");
         }
-        return result;
+        Extracted ex = new Extracted(result, total.raw, total.chars, pages);
+        return ex;
     }
 
     // ---------------------------------------------------------------- 对象与字体
 
-    /** 按 “n 0 obj … endobj” 粗切对象，只用于找字体和 ToUnicode 表 */
+    /** 粗切 “n 0 obj … endobj”，并把 /ObjStm 里的压缩对象展开进来 */
     private static Map<String, byte[]> objects(byte[] pdf) {
         Map<String, byte[]> map = new HashMap<String, byte[]>();
         String raw = new String(pdf, LATIN);
@@ -76,35 +124,249 @@ public final class PdfText {
         while (m.find()) {
             int end = raw.indexOf("endobj", m.end());
             if (end < 0) end = raw.length();
-            byte[] slice = new byte[end - m.end()];
+            byte[] slice = new byte[Math.max(0, end - m.end())];
             System.arraycopy(pdf, m.end(), slice, 0, slice.length);
             map.put(m.group(1), slice);
+        }
+        for (String key : new ArrayList<String>(map.keySet())) {
+            byte[] obj = map.get(key);
+            if (obj == null) continue;
+            String dict = new String(obj, LATIN);
+            if (!dict.contains("/ObjStm")) continue;
+            expandObjStm(map, obj, dict);
         }
         return map;
     }
 
-    /** 资源里的字体名（F1、F2…）对应到各自的 ToUnicode 表 */
+    /** 展开一个对象流：头部是对象号/偏移对，正文按偏移切片 */
+    private static void expandObjStm(Map<String, byte[]> map, byte[] obj, String dict) {
+        Matcher nMat = Pattern.compile("/N\\s+(\\d+)").matcher(dict);
+        Matcher fMat = Pattern.compile("/First\\s+(\\d+)").matcher(dict);
+        if (!nMat.find() || !fMat.find()) return;
+        int n = parseIntSafe(nMat.group(1));
+        int first = parseIntSafe(fMat.group(1));
+        byte[] stream = streamOf(obj);
+        if (stream == null) return;
+        byte[] data = inflate(stream);
+        if (data == null) return;
+        String head = new String(data, 0, Math.min(first, data.length), LATIN);
+        List<Integer> nums = new ArrayList<Integer>();
+        List<Integer> offs = new ArrayList<Integer>();
+        Matcher num = Pattern.compile("\\d+").matcher(head);
+        int idx = 0;
+        while (num.find() && idx < n * 2) {
+            if (idx % 2 == 0) nums.add(parseIntSafe(num.group()));
+            else offs.add(parseIntSafe(num.group()));
+            idx++;
+        }
+        for (int i = 0; i < nums.size(); i++) {
+            int start = first + offs.get(i);
+            int end = i + 1 < nums.size() ? first + offs.get(i + 1) : data.length;
+            if (start < 0 || start >= data.length) continue;
+            end = Math.min(end, data.length);
+            byte[] slice = new byte[Math.max(0, end - start)];
+            System.arraycopy(data, start, slice, 0, slice.length);
+            map.put(String.valueOf(nums.get(i)), slice);
+        }
+    }
+
+    private static int parseIntSafe(String s) {
+        try {
+            return Integer.parseInt(s);
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    /** 资源里的字体名（F1、F2…）对应到各自的 ToUnicode / Encoding 映射 */
     private static Map<String, CMap> fontMaps(Map<String, byte[]> objs) {
         Map<String, CMap> result = new HashMap<String, CMap>();
         for (Map.Entry<String, byte[]> e : objs.entrySet()) {
             String dict = new String(e.getValue(), LATIN);
-            Matcher fm = FONT_DICT.matcher(dict);
-            while (fm.find()) {
-                Matcher fe = FONT_ENTRY.matcher(fm.group(1));
-                while (fe.find()) {
-                    String name = fe.group(1);
-                    byte[] font = objs.get(fe.group(2));
-                    if (font == null) continue;
-                    Matcher tu = TO_UNICODE.matcher(new String(font, LATIN));
-                    if (!tu.find()) continue;
-                    byte[] cmapObj = objs.get(tu.group(1));
-                    if (cmapObj == null) continue;
-                    CMap cm = parseCMap(streamOf(cmapObj));
-                    if (cm != null) result.put(name, cm);
+            List<String> blocks = new ArrayList<String>();
+            Matcher fm = FONT_INLINE.matcher(dict);
+            while (fm.find()) blocks.add(fm.group(1));
+            Matcher fr = FONT_REF.matcher(dict);
+            while (fr.find()) {
+                byte[] fontDict = objs.get(fr.group(1));
+                if (fontDict != null) blocks.add(new String(fontDict, LATIN));
+            }
+            for (String block : blocks) addFontsFromBlock(block, objs, result);
+        }
+        return result;
+    }
+
+    private static void addFontsFromBlock(String block, Map<String, byte[]> objs, Map<String, CMap> result) {
+        Matcher fe = FONT_ENTRY.matcher(block);
+        while (fe.find()) {
+            String name = fe.group(1);
+            if ("Font".equals(name) || "Resources".equals(name)) continue;
+            byte[] font = objs.get(fe.group(2));
+            if (font == null) continue;
+            CMap cm = cmapForFont(font, objs);
+            if (cm != null) result.put(name, cm);
+        }
+    }
+
+    /** 字体字典 → 编码表：优先 ToUnicode，其次 /Encoding /Differences */
+    private static CMap cmapForFont(byte[] fontObj, Map<String, byte[]> objs) {
+        String font = new String(fontObj, LATIN);
+        Matcher tu = TO_UNICODE.matcher(font);
+        if (tu.find()) {
+            byte[] cmapObj = objs.get(tu.group(1));
+            if (cmapObj != null) {
+                CMap cm = parseCMap(streamOf(cmapObj));
+                if (cm != null) return cm;
+            }
+        }
+        return encodingMap(font);
+    }
+
+    /** 简单字体的 /Encoding：基础编码 + Differences 里的字形名 */
+    private static CMap encodingMap(String font) {
+        String base = null;
+        String diffs = null;
+        Matcher ei = ENCODING_INLINE.matcher(font);
+        if (ei.find()) {
+            String block = ei.group(1);
+            Matcher be = BASE_ENCODING.matcher(block);
+            if (be.find()) base = be.group(1);
+            Matcher df = DIFFERENCES.matcher(block);
+            if (df.find()) diffs = df.group(1);
+        } else {
+            Matcher en = ENCODING_NAME.matcher(font);
+            if (en.find()) base = en.group(1);
+        }
+        if (base == null && diffs == null) return null;
+
+        CMap cm = new CMap();
+        cm.codeLen = 1;
+        charsetBase(cm, base);
+        if (diffs != null) {
+            Matcher names = Pattern.compile("/\\s*([^\\s/<>\\[\\]]+)|(\\d+)").matcher(diffs);
+            int code = 0;
+            while (names.find()) {
+                if (names.group(2) != null) {
+                    code = parseIntSafe(names.group(2));
+                } else {
+                    String u = glyphToUnicode(names.group(1));
+                    if (u != null) cm.map.put(code, u);
+                    code++;
                 }
             }
         }
-        return result;
+        return cm.map.isEmpty() ? null : cm;
+    }
+
+    /** 基础编码表：WinAnsi/MacRoman/Standard 的差别主要在 0x80–0x9F，其余按 cp1252 处理 */
+    private static void charsetBase(CMap cm, String base) {
+        Charset cs = WIN1252;
+        if ("MacRomanEncoding".equals(base)) cs = charsetOrLatin("x-MacRoman");
+        for (int code = 32; code <= 255; code++) {
+            try {
+                String s = new String(new byte[]{(byte) code}, cs);
+                cm.map.put(code, s);
+            } catch (Exception ignored) {
+                // 单字节都解不出就跳过
+            }
+        }
+    }
+
+    /** 字形名 → Unicode（Adobe Glyph List 的常用子集 + uniXXXX / uXXXX） */
+    private static String glyphToUnicode(String raw) {
+        if (raw == null || raw.isEmpty()) return null;
+        String name = raw;
+        int dot = name.indexOf('.');
+        if (dot > 0) name = name.substring(0, dot);
+        if (name.startsWith("uni") && name.length() >= 7) {
+            try {
+                StringBuilder sb = new StringBuilder();
+                for (int i = 3; i + 4 <= name.length(); i += 4) {
+                    sb.append((char) Integer.parseInt(name.substring(i, i + 4), 16));
+                }
+                return sb.length() == 0 ? null : sb.toString();
+            } catch (Exception ignored) {
+                return null;
+            }
+        }
+        if (name.startsWith("u") && name.length() >= 5 && name.length() <= 7) {
+            try {
+                return new String(Character.toChars(Integer.parseInt(name.substring(1), 16)));
+            } catch (Exception ignored) {
+                return null;
+            }
+        }
+        if (name.length() == 1) {
+            char ch = name.charAt(0);
+            if (ch >= 0x21 && ch <= 0x7E) return name;
+        }
+        String v = GLYPHS.get(name);
+        if (v != null) return v;
+        if (name.startsWith("afii") || name.startsWith("g") || name.startsWith("cid")) return null;
+        return null;
+    }
+
+    private static final Map<String, String> GLYPHS = new HashMap<String, String>();
+    static {
+        GLYPHS.put("space", " ");
+        GLYPHS.put("exclam", "!");
+        GLYPHS.put("quotedbl", "\"");
+        GLYPHS.put("numbersign", "#");
+        GLYPHS.put("dollar", "$");
+        GLYPHS.put("percent", "%");
+        GLYPHS.put("ampersand", "&");
+        GLYPHS.put("quotesingle", "'");
+        GLYPHS.put("quoteright", "\u2019");
+        GLYPHS.put("quoteleft", "\u2018");
+        GLYPHS.put("parenleft", "(");
+        GLYPHS.put("parenright", ")");
+        GLYPHS.put("asterisk", "*");
+        GLYPHS.put("plus", "+");
+        GLYPHS.put("comma", ",");
+        GLYPHS.put("hyphen", "-");
+        GLYPHS.put("period", ".");
+        GLYPHS.put("slash", "/");
+        GLYPHS.put("zero", "0");
+        GLYPHS.put("one", "1");
+        GLYPHS.put("two", "2");
+        GLYPHS.put("three", "3");
+        GLYPHS.put("four", "4");
+        GLYPHS.put("five", "5");
+        GLYPHS.put("six", "6");
+        GLYPHS.put("seven", "7");
+        GLYPHS.put("eight", "8");
+        GLYPHS.put("nine", "9");
+        GLYPHS.put("colon", ":");
+        GLYPHS.put("semicolon", ";");
+        GLYPHS.put("less", "<");
+        GLYPHS.put("equal", "=");
+        GLYPHS.put("greater", ">");
+        GLYPHS.put("question", "?");
+        GLYPHS.put("at", "@");
+        GLYPHS.put("bracketleft", "[");
+        GLYPHS.put("backslash", "\\");
+        GLYPHS.put("bracketright", "]");
+        GLYPHS.put("asciicircum", "^");
+        GLYPHS.put("underscore", "_");
+        GLYPHS.put("grave", "`");
+        GLYPHS.put("braceleft", "{");
+        GLYPHS.put("bar", "|");
+        GLYPHS.put("braceright", "}");
+        GLYPHS.put("asciitilde", "~");
+        GLYPHS.put("bullet", "\u2022");
+        GLYPHS.put("endash", "\u2013");
+        GLYPHS.put("emdash", "\u2014");
+        GLYPHS.put("quotedblleft", "\u201C");
+        GLYPHS.put("quotedblright", "\u201D");
+        GLYPHS.put("ellipsis", "\u2026");
+        GLYPHS.put("minus", "-");
+        GLYPHS.put("fi", "fi");
+        GLYPHS.put("fl", "fl");
+        GLYPHS.put("copyright", "\u00A9");
+        GLYPHS.put("registered", "\u00AE");
+        GLYPHS.put("degree", "\u00B0");
+        GLYPHS.put("nbspace", " ");
+        GLYPHS.put("nonbreakingspace", " ");
     }
 
     private static CMap parseCMap(byte[] data) {
@@ -140,7 +402,12 @@ public final class PdfText {
                     }
                 } else {
                     String start = dst.substring(1, dst.length() - 1);
-                    int base = start.length() >= 4 ? Integer.parseInt(start.substring(0, 4), 16) : 0;
+                    int base = 0;
+                    try {
+                        base = start.length() >= 4 ? Integer.parseInt(start.substring(0, 4), 16) : 0;
+                    } catch (Exception ignored) {
+                        base = 0;
+                    }
                     for (int code = lo; code <= hi && code - lo < 65536; code++) {
                         int u = base + (code - lo);
                         StringBuilder sb = new StringBuilder();
@@ -154,8 +421,12 @@ public final class PdfText {
     }
 
     private static int codeOf(String hex) {
-        return hex.length() <= 4 ? Integer.parseInt(hex, 16)
-                : Integer.parseInt(hex.substring(hex.length() - 4), 16);
+        try {
+            return hex.length() <= 4 ? Integer.parseInt(hex, 16)
+                    : Integer.parseInt(hex.substring(hex.length() - 4), 16);
+        } catch (Exception e) {
+            return 0;
+        }
     }
 
     private static String unicodeOf(String hex) {
@@ -234,10 +505,9 @@ public final class PdfText {
         }
     }
 
-    /** 逐字符扫描内容流，遇到 Tj / TJ 就按当前字体解码，遇到换行类操作符补空行 */
-    private static String scan(String c, Map<String, CMap> fontMaps) {
+    /** 逐字符扫描内容流，遇到 Tj / TJ 就按当前字体解码，遇到换行类操作符补换行 */
+    private static String scan(String c, Map<String, CMap> fontMaps, Count count) {
         StringBuilder sb = new StringBuilder();
-        List<String> fonts = new ArrayList<String>();
         CMap current = null;
         List<Tok> operands = new ArrayList<Tok>();
         List<Tok> arrayStrings = new ArrayList<Tok>();
@@ -261,7 +531,7 @@ public final class PdfText {
                     if (close < 0) break;
                     String hex = c.substring(i + 1, close).replaceAll("\\s+", "");
                     Tok t = new Tok('H', hex);
-                    if (!arrayStrings.isEmpty() || lastIsArray(operands)) arrayStrings.add(t);
+                    if (lastIsArray(operands)) arrayStrings.add(t);
                     else operands.add(t);
                     i = close + 1;
                 }
@@ -290,16 +560,13 @@ public final class PdfText {
                 } else {
                     if ("Tf".equals(word)) {
                         String name = lastName(operands);
-                        if (name != null) {
-                            if (!fonts.contains(name)) fonts.add(name);
-                            current = fontMaps.get(name);
-                        }
+                        current = name == null ? null : fontMaps.get(name);
                     } else if ("Tj".equals(word) || "'".equals(word) || "\"".equals(word)) {
                         Tok s = lastString(operands);
-                        if (s != null) sb.append(decode(s, current));
+                        if (s != null) emit(sb, s, current, count);
                         operands.clear();
                     } else if ("TJ".equals(word)) {
-                        for (Tok s : arrayStrings) sb.append(decode(s, current));
+                        for (Tok s : arrayStrings) emit(sb, s, current, count);
                         arrayStrings.clear();
                         operands.clear();
                     } else if ("Td".equals(word) || "TD".equals(word)) {
@@ -321,6 +588,19 @@ public final class PdfText {
             }
         }
         return sb.toString();
+    }
+
+    private static void emit(StringBuilder sb, Tok t, CMap cm, Count count) {
+        String s;
+        if (cm != null) {
+            s = t.type == 'H' ? fromCMap(hexBytes(t.val), cm) : fromCMap(t.val.getBytes(LATIN), cm);
+        } else {
+            s = t.type == 'H' ? guess(hexBytes(t.val)) : smart(t.val);
+        }
+        if (s.isEmpty()) return;
+        sb.append(s);
+        count.chars += s.length();
+        if (cm == null) count.raw += s.length();
     }
 
     private static boolean lastIsArray(List<Tok> operands) {
@@ -427,16 +707,24 @@ public final class PdfText {
         return sb.toString();
     }
 
-    /** 按当前字体的映射解码字符串；没有映射就按单字节 + UTF-8 启发式 */
-    private static String decode(Tok t, CMap cm) {
-        if (t.type == 'H') {
-            byte[] bytes = hexBytes(t.val);
-            if (cm != null) return fromCMap(bytes, cm);
-            return guess(bytes);
+    private static byte[] hexBytes(String hex) {
+        StringBuilder clean = new StringBuilder(hex.length());
+        for (int i = 0; i < hex.length(); i++) {
+            char ch = hex.charAt(i);
+            if ((ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'F') || (ch >= 'a' && ch <= 'f')) {
+                clean.append(ch);
+            }
         }
-        byte[] bytes = t.val.getBytes(LATIN);
-        if (cm != null) return fromCMap(bytes, cm);
-        return smart(t.val);
+        if ((clean.length() & 1) == 1) clean.append('0');
+        byte[] b = new byte[clean.length() / 2];
+        for (int i = 0; i < b.length; i++) {
+            try {
+                b[i] = (byte) Integer.parseInt(clean.substring(i * 2, i * 2 + 2), 16);
+            } catch (Exception ignored) {
+                b[i] = 0;
+            }
+        }
+        return b;
     }
 
     private static String fromCMap(byte[] bytes, CMap cm) {
@@ -459,15 +747,6 @@ public final class PdfText {
             i += used;
         }
         return sb.toString();
-    }
-
-    private static byte[] hexBytes(String hex) {
-        String h = hex.length() % 2 == 0 ? hex : hex + "0";
-        byte[] b = new byte[h.length() / 2];
-        for (int i = 0; i < b.length; i++) {
-            b[i] = (byte) Integer.parseInt(h.substring(i * 2, i * 2 + 2), 16);
-        }
-        return b;
     }
 
     /** 字节串先当 UTF-8，再当 UTF-16BE，都不行就按 Latin-1 原样保留 */
@@ -511,6 +790,14 @@ public final class PdfText {
                     .decode(java.nio.ByteBuffer.wrap(bytes)).toString();
         } catch (Exception e) {
             return s;
+        }
+    }
+
+    private static Charset charsetOrLatin(String name) {
+        try {
+            return Charset.forName(name);
+        } catch (Exception e) {
+            return LATIN;
         }
     }
 

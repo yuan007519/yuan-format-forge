@@ -21,7 +21,7 @@ Get-ChildItem "$out\dex" -Filter *.dex -ErrorAction SilentlyContinue | Remove-It
 & "$bt\aapt2.exe" compile --dir "$proj\res" -o "$out\res.zip" 2>&1 | Out-File -Encoding utf8 "$out\aapt-compile.log"
 if ($LASTEXITCODE -ne 0) { "AAPT2 COMPILE FAILED"; exit 1 }
 
-& "$bt\aapt2.exe" link -o "$out\base.apk" -I $jar --manifest "$proj\AndroidManifest.xml" --java "$out\gen" --min-sdk-version 24 --target-sdk-version 34 --version-code 10 --version-name 1.5.2 --auto-add-overlay "$out\res.zip" 2>&1 | Out-File -Encoding utf8 "$out\aapt-link.log"
+& "$bt\aapt2.exe" link -o "$out\base.apk" -I $jar --manifest "$proj\AndroidManifest.xml" --java "$out\gen" --min-sdk-version 24 --target-sdk-version 34 --version-code 11 --version-name 1.5.3 --auto-add-overlay "$out\res.zip" 2>&1 | Out-File -Encoding utf8 "$out\aapt-link.log"
 if ($LASTEXITCODE -ne 0) { "AAPT2 LINK FAILED"; exit 1 }
 
 $cp = "$jar;$ffJar;$ffDep"

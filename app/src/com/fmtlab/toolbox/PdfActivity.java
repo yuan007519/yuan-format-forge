@@ -564,24 +564,61 @@ public class PdfActivity extends Activity {
             public void run() {
                 try {
                     byte[] data = Ui.readBytes(PdfActivity.this, pdfUri);
-                    final String text = com.fmtlab.toolbox.core.PdfText.extract(data);
-                    File out = new File(Ui.outDir(PdfActivity.this),
-                            uniqueName(Ui.baseName(pdfName) + "_文本." + outExt));
-                    final String note = com.fmtlab.toolbox.core.DocMatrix.write(
-                            text.getBytes(java.nio.charset.Charset.forName("UTF-8")),
-                            "txt", pdfName, label, out);
+                    com.fmtlab.toolbox.core.PdfText.Extracted info = null;
+                    try {
+                        info = com.fmtlab.toolbox.core.PdfText.extractInfo(data);
+                    } catch (Exception e) {
+                        // 没有文字层的扫描件：DOCX 仍然可以走图片版，其它格式才算失败
+                        if (!"docx".equals(outExt)) throw e;
+                    }
+                    final String text = info == null ? "" : info.text;
+                    final boolean imageWord = "docx".equals(outExt) && (info == null || !info.reliable());
+                    final File out;
+                    final int chars = text.length();
+                    final int pages;
+                    final String note;
+                    if (imageWord) {
+                        out = new File(Ui.outDir(PdfActivity.this),
+                                uniqueName(Ui.baseName(pdfName) + "_图片版.docx"));
+                        File[] rendered = renderPagePngs(2.0f);
+                        List<File> files = new ArrayList<File>();
+                        List<int[]> sizes = new ArrayList<int[]>();
+                        for (File p : rendered) {
+                            Bitmap bm = BitmapFactory.decodeFile(p.getAbsolutePath());
+                            if (bm == null) continue;
+                            sizes.add(new int[]{bm.getWidth(), bm.getHeight()});
+                            files.add(p);
+                            bm.recycle();
+                        }
+                        if (files.isEmpty()) throw new Exception("无法渲染这个 PDF 的页面");
+                        com.fmtlab.toolbox.core.DocxWriter.writeImages(out, files, sizes,
+                                Ui.baseName(pdfName));
+                        pages = files.size();
+                        note = info == null
+                                ? "这个 PDF 没有文字层（扫描件），已按页嵌图导出，文字不可编辑"
+                                : "字体缺少 Unicode 映射，已按页嵌图导出，文字不可编辑";
+                    } else {
+                        out = new File(Ui.outDir(PdfActivity.this),
+                                uniqueName(Ui.baseName(pdfName) + "_文本." + outExt));
+                        note = com.fmtlab.toolbox.core.DocMatrix.write(
+                                text.getBytes(java.nio.charset.Charset.forName("UTF-8")),
+                                "txt", pdfName, label, out)
+                                + (info.reliable() ? "" : "；注意：字体缺少 Unicode 映射，部分文字可能不可读");
+                        pages = info.pages;
+                    }
                     if (!out.exists() || out.length() == 0) throw new Exception("写出失败");
                     results.add(out);
                     final File fout = out;
-                    final int chars = text.length();
                     handler.post(new Runnable() {
                         @Override
                         public void run() {
                             pbPdf.setVisibility(View.GONE);
                             btnPdfSaveAll.setVisibility(View.VISIBLE);
-                            tvPdfStatus.setText("完成：" + label + " · " + chars + " 字符 · " + Ui.size(fout.length())
-                                    + "（" + note + "）");
-                            addRow(fout, label + " · 抽取 " + chars + " 字符");
+                            tvPdfStatus.setText("完成：" + (imageWord ? "DOCX（图片版）" : label)
+                                    + " · " + (imageWord ? "共 " + pages + " 页" : chars + " 字符")
+                                    + " · " + Ui.size(fout.length()) + "（" + note + "）");
+                            addRow(fout, imageWord ? "DOCX 图片版 · " + pages + " 页"
+                                    : label + " · 抽取 " + chars + " 字符");
                         }
                     });
                 } catch (final Throwable e) {
@@ -595,6 +632,55 @@ public class PdfActivity extends Activity {
                 }
             }
         });
+    }
+
+    /** 把所有页渲染成缓存目录里的 PNG，供图片版 Word 使用 */
+    private File[] renderPagePngs(float scale) throws Exception {
+        ParcelFileDescriptor pfd = null;
+        PdfRenderer renderer = null;
+        try {
+            pfd = getContentResolver().openFileDescriptor(pdfUri, "r");
+            if (pfd == null) throw new Exception("无法打开 PDF");
+            renderer = new PdfRenderer(pfd);
+            int total = renderer.getPageCount();
+            File dir = new File(getCacheDir(), "pdfword");
+            dir.mkdirs();
+            File[] old = dir.listFiles();
+            if (old != null) {
+                for (File f : old) f.delete();
+            }
+            List<File> outs = new ArrayList<File>();
+            for (int i = 0; i < total; i++) {
+                PdfRenderer.Page page = renderer.openPage(i);
+                try {
+                    int w = Math.max(1, (int) (page.getWidth() * scale));
+                    int h = Math.max(1, (int) (page.getHeight() * scale));
+                    Bitmap bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+                    bmp.eraseColor(Color.WHITE);
+                    page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+                    File f = new File(dir, "page" + (i + 1) + ".png");
+                    FileOutputStream fos = new FileOutputStream(f);
+                    try {
+                        bmp.compress(Bitmap.CompressFormat.PNG, 100, fos);
+                        fos.flush();
+                    } finally {
+                        fos.close();
+                    }
+                    bmp.recycle();
+                    outs.add(f);
+                } finally {
+                    page.close();
+                }
+            }
+            return outs.toArray(new File[0]);
+        } finally {
+            if (renderer != null) {
+                try { renderer.close(); } catch (Exception ignored) {}
+            }
+            if (pfd != null) {
+                try { pfd.close(); } catch (Exception ignored) {}
+            }
+        }
     }
 
     private void imagesToPdf() {

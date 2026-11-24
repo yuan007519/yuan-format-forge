@@ -14,7 +14,7 @@ public class AboutActivity extends Activity {
         setContentView(R.layout.activity_about);
 
         ((TextView) findViewById(R.id.tvTitle)).setText("关于");
-        ((TextView) findViewById(R.id.tvSubtitle)).setText("版本 " + LicenseText.VERSION_NAME + " · GPLv3 · 第三方组件与源码");
+        ((TextView) findViewById(R.id.tvSubtitle)).setText("版本 " + LicenseText.VERSION_NAME + " · 作者 袁神 · GPLv3");
         findViewById(R.id.btnBack).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -25,6 +25,7 @@ public class AboutActivity extends Activity {
         ((TextView) findViewById(R.id.tvAboutInfo)).setText(LicenseText.about());
         ((TextView) findViewById(R.id.tvLicense)).setText(LicenseText.license());
         ((TextView) findViewById(R.id.tvPrivacy)).setText(LicenseText.privacy());
+        ((TextView) findViewById(R.id.tvAuthor)).setText(LicenseText.author());
 
         findViewById(R.id.btnCopyRepo).setOnClickListener(new View.OnClickListener() {
             @Override

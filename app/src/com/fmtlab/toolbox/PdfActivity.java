@@ -597,6 +597,35 @@ public class PdfActivity extends Activity {
                         note = info == null
                                 ? "这个 PDF 没有文字层（扫描件），已按页嵌图导出，文字不可编辑"
                                 : "字体缺少 Unicode 映射，已按页嵌图导出，文字不可编辑";
+                    } else if ("docx".equals(outExt)) {
+                        File layout = null;
+                        int layoutPages = 0;
+                        try {
+                            List<com.fmtlab.toolbox.core.PdfLayout.PageEl> model =
+                                    com.fmtlab.toolbox.core.PdfLayout.read(data);
+                            if (!model.isEmpty()) {
+                                layout = new File(Ui.outDir(PdfActivity.this),
+                                        uniqueName(Ui.baseName(pdfName) + "_版式.docx"));
+                                com.fmtlab.toolbox.core.DocxWriter.writeLayout(layout, model,
+                                        Ui.baseName(pdfName));
+                                layoutPages = model.size();
+                            }
+                        } catch (Throwable ignored) {
+                            layout = null;
+                        }
+                        if (layout != null && layout.length() > 0) {
+                            out = layout;
+                            pages = layoutPages;
+                            note = "已按 PDF 原始坐标还原文字、图片与表格线，文字可编辑";
+                        } else {
+                            out = new File(Ui.outDir(PdfActivity.this),
+                                    uniqueName(Ui.baseName(pdfName) + "_文本.docx"));
+                            note = com.fmtlab.toolbox.core.DocMatrix.write(
+                                    text.getBytes(java.nio.charset.Charset.forName("UTF-8")),
+                                    "txt", pdfName, label, out)
+                                    + (info.reliable() ? "" : "；注意：字体缺少 Unicode 映射，部分文字可能不可读");
+                            pages = info.pages;
+                        }
                     } else {
                         out = new File(Ui.outDir(PdfActivity.this),
                                 uniqueName(Ui.baseName(pdfName) + "_文本." + outExt));
@@ -609,16 +638,21 @@ public class PdfActivity extends Activity {
                     if (!out.exists() || out.length() == 0) throw new Exception("写出失败");
                     results.add(out);
                     final File fout = out;
+                    final boolean layoutWord = "docx".equals(outExt) && !imageWord
+                            && out.getName().contains("_版式");
                     handler.post(new Runnable() {
                         @Override
                         public void run() {
                             pbPdf.setVisibility(View.GONE);
                             btnPdfSaveAll.setVisibility(View.VISIBLE);
-                            tvPdfStatus.setText("完成：" + (imageWord ? "DOCX（图片版）" : label)
-                                    + " · " + (imageWord ? "共 " + pages + " 页" : chars + " 字符")
+                            tvPdfStatus.setText("完成："
+                                    + (imageWord ? "DOCX（图片版）" : (layoutWord ? "DOCX（版式）" : label))
+                                    + " · " + (layoutWord ? "共 " + pages + " 页"
+                                    : (imageWord ? "共 " + pages + " 页" : chars + " 字符"))
                                     + " · " + Ui.size(fout.length()) + "（" + note + "）");
                             addRow(fout, imageWord ? "DOCX 图片版 · " + pages + " 页"
-                                    : label + " · 抽取 " + chars + " 字符");
+                                    : (layoutWord ? "DOCX 版式 · " + pages + " 页"
+                                    : label + " · 抽取 " + chars + " 字符"));
                         }
                     });
                 } catch (final Throwable e) {

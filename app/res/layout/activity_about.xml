@@ -97,6 +97,60 @@
                     android:layout_marginTop="10dp"
                     style="@style/BodyText" />
             </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/bg_card"
+                android:elevation="1dp"
+                android:gravity="center_horizontal"
+                android:orientation="vertical"
+                android:padding="18dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="start"
+                    android:text="关于作者"
+                    style="@style/CardText" />
+
+                <TextView
+                    android:id="@+id/tvAuthor"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    style="@style/BodyText" />
+
+                <ImageView
+                    android:id="@+id/ivAuthorQr"
+                    android:layout_width="190dp"
+                    android:layout_height="190dp"
+                    android:layout_marginTop="14dp"
+                    android:adjustViewBounds="true"
+                    android:background="@drawable/bg_qr"
+                    android:contentDescription="微信收款码"
+                    android:padding="8dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/author_qr" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:fontFamily="sans-serif-medium"
+                    android:text="请作者喝冰红茶"
+                    android:textColor="@color/brand"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:gravity="center"
+                    android:text="微信扫一扫，金额随意，心意到了就行。"
+                    style="@style/CaptionText" />
+            </LinearLayout>
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

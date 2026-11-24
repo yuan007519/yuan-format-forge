@@ -165,7 +165,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
-                        android:text="抽取文字层，不还原版式。选 DOCX 时，扫描件或字体缺少编码表会自动改成按页嵌图的图片版 Word；要纯图片请用「PDF 转图片」。"
+                        android:text="选 DOCX 时按 PDF 原始坐标还原文字、图片和表格线，文字可编辑；扫描件或字体缺编码表时自动按页嵌图，保证内容不丢。要纯图片请用「PDF 转图片」。"
                         style="@style/CaptionText" />
                 </LinearLayout>
 

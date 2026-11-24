@@ -63,7 +63,7 @@ public final class PdfText {
     }
 
     /** 一个字体的映射：编码字节数 + 编码到 Unicode 的对照表 */
-    private static final class CMap {
+    static final class CMap {
         int codeLen = 2;
         final Map<Integer, String> map = new HashMap<Integer, String>();
     }
@@ -799,6 +799,40 @@ public final class PdfText {
         } catch (Exception e) {
             return LATIN;
         }
+    }
+
+    // ---------------------------------------------------------------- 供版式解析复用
+
+    static Map<String, byte[]> readObjects(byte[] pdf) {
+        return objects(pdf);
+    }
+
+    static byte[] streamOfObject(byte[] obj) {
+        return streamOf(obj);
+    }
+
+    static byte[] tryInflate(byte[] data) {
+        return inflate(data);
+    }
+
+    static CMap cmapFor(byte[] fontObj, Map<String, byte[]> objs) {
+        return cmapForFont(fontObj, objs);
+    }
+
+    static String decodeWithCMap(byte[] bytes, CMap cm) {
+        return fromCMap(bytes, cm);
+    }
+
+    static String smartText(String s) {
+        return smart(s);
+    }
+
+    static String guessBytes(byte[] b) {
+        return guess(b);
+    }
+
+    static byte[] hexToBytes(String hex) {
+        return hexBytes(hex);
     }
 
     private static String tidy(String s) {

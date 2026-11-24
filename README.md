@@ -13,7 +13,7 @@ Android 端的本地文件格式转换工具。内置 FFmpeg 6.0，图片、PDF�
 |---|---|---|
 | 文本乱码修复 | txt / log / md / csv 等文本 | 6 种编码另存 |
 | 图片 | png / jpg / jpeg / jfif / webp / bmp / gif / ico / tif / tiff / tga / qoi / ppm / psd | png / jpg / webp / bmp / tiff / tga / qoi / ico / ppm |
-| PDF | pdf / 图片 | png / jpg / webp / pptx / txt / md / html / docx / pdf |
+| PDF | pdf / 图片 | png / jpg / webp / pptx / txt / md / html / docx（版式）/ pdf |
 | 文档 | docx / xlsx / pptx / odt / ods / odp / epub / html / md / rtf / csv / tsv / json / xml / yaml / txt | txt / md / html / docx / odt / rtf / pdf / epub / csv / tsv / json / xlsx / ods；pptx 另可导出 png / jpg |
 | 字幕 | srt / vtt / ass / ssa | srt / vtt / ass / ssa / txt |
 | 音频 | aac / flac / m4a / mp3 / ogg / opus / wav / wma | wav / m4a / aac / mp3 / flac / ogg / opus / wma |
@@ -21,7 +21,7 @@ Android 端的本地文件格式转换工具。内置 FFmpeg 6.0，图片、PDF�
 | 万能转码 | FFmpeg 可解的常见音视频 | 14 种（MP4 H.264/H.265、MKV、MOV、AVI、WMV、FLV、WebM、MP3、M4A、AAC、WAV、FLAC、OGG） |
 | 编码工具箱 | 文本 | Base64 / URL / HEX / Unicode 双向转换 |
 
-文档转换只处理文字与表格内容，不保留版式。PDF 转 PPTX 是逐页图片版；PDF 转文本依赖 PDF 内的文字层（中文 CID 字体走 ToUnicode 表，简单字体走 /Encoding /Differences）。选 DOCX 时，扫描件或字体确实没有 Unicode 映射的 PDF 会自动改成按页嵌图的图片版 Word，文字不可编辑。
+文档转换只处理文字与表格内容，不保留版式。PDF 转 DOCX 例外：按 PDF 页面坐标把文字、图片、表格线放到对应位置，文字仍可编辑；扫描件或字体缺少 Unicode 映射时退回按页嵌图的图片版。PDF 转 PPTX 是逐页图片版；PDF 转文本依赖 PDF 内的文字层（中文 CID 字体走 ToUnicode 表，简单字体走 /Encoding /Differences）。
 
 ## 下载
 
@@ -29,8 +29,8 @@ Release 页面提供两个包，功能相同，区别是内置的 FFmpeg 原生�
 
 | 文件 | 体积 | 说明 |
 |---|---|---|
-| `yuan-format-forge_1.5.3_arm64.apk` | 26.9 MB | 只含 arm64-v8a |
-| `yuan-format-forge_1.5.3_full.apk` | 54.3 MB | arm64-v8a + armeabi-v7a |
+| `yuan-format-forge_1.5.4_arm64.apk` | 27.0 MB | 只含 arm64-v8a |
+| `yuan-format-forge_1.5.4_full.apk` | 54.4 MB | arm64-v8a + armeabi-v7a |
 
 签名证书（自签名，与历史版本一致，可覆盖升级）：
 
@@ -113,3 +113,4 @@ docs/                    使用说明、构建说明
 GPL-3.0-or-later。内置 ffmpeg-kit-full-gpl，包含 x264、x265，因此整体按 GPL 分发。第三方组件与上游源码地址见 `THIRD_PARTY_NOTICES.md`。
 
 H.264 / H.265 涉及专利池授权，本项目未取得许可，请勿用于商业分发。本项目与「格式工厂 / FormatFactory」无关。
+

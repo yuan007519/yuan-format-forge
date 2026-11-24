@@ -90,7 +90,7 @@ public class HomeActivity extends Activity {
     private View makeCard(Feature f, int index, int total) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(Ui.dpi(this, 14), Ui.dpi(this, 14), Ui.dpi(this, 14), Ui.dpi(this, 16));
+        card.setPadding(Ui.dpi(this, 15), Ui.dpi(this, 15), Ui.dpi(this, 15), Ui.dpi(this, 16));
         card.setBackgroundResource(R.drawable.bg_card_ripple);
         card.setElevation(Ui.dp(this, 1.2f));
         card.setClickable(true);
@@ -100,9 +100,9 @@ public class HomeActivity extends Activity {
         boolean alone = (total % 2 == 1) && (index == total - 1);
         if (alone) {
             lp = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         } else {
-            lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+            lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f);
         }
         lp.setMargins(Ui.dpi(this, 5), Ui.dpi(this, 5), Ui.dpi(this, 5), Ui.dpi(this, 5));
         card.setLayoutParams(lp);

@@ -3,7 +3,7 @@ package com.fmtlab.toolbox;
 /** App 内的法律声明与第三方许可文本（GPLv3 §5(d) 要求的 Appropriate Legal Notices） */
 public final class LicenseText {
 
-    public static final String VERSION_NAME = "1.5.3";
+    public static final String VERSION_NAME = "1.5.4";
     public static final String REPO_URL = "https://github.com/yuan007519/yuan-format-forge";
 
     private LicenseText() {}
@@ -11,19 +11,36 @@ public final class LicenseText {
     public static String about() {
         return "袁神的格式工坊 v" + VERSION_NAME + "\n"
                 + "包名：com.fmtlab.toolbox\n"
-                + "十个模块：文本乱码修复、图片、PDF（转图片 / 合 PDF / ⇄ PPTX / 抽文本）、文档、字幕、音频、视频、万能转码、编码工具、关于\n"
+                + "十个模块：文本乱码修复、图片、PDF（转图片 / 合 PDF / ⇄ PPTX / 抽文本 / 版式 Word）、文档、字幕、音频、视频、万能转码、编码工具、关于\n"
                 + "\n"
                 + "v1.4 新增：字幕 SRT / VTT / ASS / SSA 互转；图片输出扩到 TIFF / TGA / QOI / ICO / PPM；"
                 + "音频 8 种输出、视频 4 种容器 + GIF + 抽帧 + 8 种音轨导出；文档矩阵新增 ODT / RTF / XLSX / EPUB 输出与 EPUB / ODF 输入；PDF 可抽文字层转 TXT / MD / HTML / DOCX。\n"
                 + "v1.5.1 修复：RTF 输入不再被判成老式二进制格式；PPTX 转 PDF 与逐页导图不再报 document is closed。\n"
                 + "v1.5.2 修复：FFmpeg 引擎在真机上因缺少依赖包无法启动，视频、音频、万能转码的 FFmpeg 相关格式现已可用；PDF 抽文本支持中文 CID 字体（读取 ToUnicode 表）；首页底部不再写死旧版本号。\n"
                 + "v1.5.3 修复：PDF 转 Word 不再输出乱码——支持对象流与间接字体字典、/Encoding /Differences 字形名映射；字体确实缺少 Unicode 映射时自动改为按页嵌图的图片版 Word。\n"
+                + "v1.5.4 新增：PDF 转 Word 改为按原始坐标排版，文字、图片、表格线与 PDF 页面一一对应，文字仍可编辑；关于页新增作者与收款码。\n"
                 + "\n"
                 + "本应用全部转换都在手机本地完成：APK 未申请任何权限（包括联网权限），"
                 + "不联网、不上传、不读取与当前任务无关的文件。\n"
                 + "\n"
                 + "作者：袁神（个人项目）。这是一个业余时间写的工具集，不提供任何形式的担保，"
                 + "重要文件请在转换前自行备份。";
+    }
+
+    /** 关于作者：一篇不带任何真实身份信息的自述 */
+    public static String author() {
+        return "余自幼学诗书，至今十有余岁，四书五经尚不能熟诵。诸父皆谓余愚，余未尝莽驳。\n"
+                + "\n"
+                + "然众人莫知，余乃承四方之化、应天地之气运而生，顺天道之命，化为人形，降于此间，生于此家。"
+                + "余自降生，数月便行，又数月能言，不足一岁能识文认字。且藏且拙，未露马脚于人前。\n"
+                + "\n"
+                + "稍长，观诸多文档，至陋至鄙，不堪入目：如狐之腋下，如田之足底，腥且臊，膻且臭，"
+                + "每观之，几反胃于昨日饭食。年复一年，读遍万千文档，未有一版能入我目者。悲夫！世上无善文者！\n"
+                + "\n"
+                + "作文岂是如此不便之物！余甚哀之。文道不昌，非人之过也。无神兵利器何以为文？"
+                + "某愿以身合道，化为神器辅佐天下为文，重振文道风骨。此身安矣。\n"
+                + "\n"
+                + "——袁神";
     }
 
     public static String license() {
@@ -94,3 +111,4 @@ public final class LicenseText {
                 + "下次选择新文件时自动清空，卸载应用即全部删除。";
     }
 }
+

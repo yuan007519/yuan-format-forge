@@ -100,18 +100,22 @@ docs/                    使用说明、构建说明
 
 ## 已知限制
 
-- 不含 OCR，图片与扫描版 PDF 无法转成文字。
+- 不含 OCR，图片和扫描版 PDF 不能转成文字。
 - 不支持相机 RAW、SVG 渲染、JXL、AVIF 编码、heic/heif。
-- 不支持旧二进制格式：doc / wps / wpt / et / ett / dps / dpt / xls / ofd / mobi。
+- 不支持 doc / wps / wpt / et / ett / dps / dpt / xls / ofd / mobi 这类旧二进制格式。
 - 不支持音乐平台加密格式。
-- PDF 转 XLSX、PPTX 转 ODP 未实现。
-- 文档转换不保留多栏、SmartArt、公式等版式。
-- 只在桌面 JVM 上做了核心逻辑单测，没有真机自动化测试。
+- PDF 转 XLSX、PPTX 转 ODP 没做。
+- Office 文档之间转换只处理文字和表格，不保留多栏、SmartArt、公式这些版式。
+- PDF 转 DOCX 按页面坐标摆放，旋转文字、跨栏排版可能对不齐；扫描件只能出图片版。
+- GIF 最长 60 秒，帧率高于 20 时部分浏览器播放速度可能不准。
+- 视频重编码比较慢，10 分钟 1080p 大约要 1 到 4 分钟。
+
 
 ## 许可
 
 GPL-3.0-or-later。内置 ffmpeg-kit-full-gpl，包含 x264、x265，因此整体按 GPL 分发。第三方组件与上游源码地址见 `THIRD_PARTY_NOTICES.md`。
 
 H.264 / H.265 涉及专利池授权，本项目未取得许可，请勿用于商业分发。本项目与「格式工厂 / FormatFactory」无关。
+
 
 

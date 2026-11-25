@@ -20,6 +20,8 @@ Android 端的本地文件格式转换工具。内置 FFmpeg 6.0，图片、PDF�
 | 视频 | mp4 / m4v / m4s / mkv / mov / avi / flv / wmv / webm / ts / mts / m2ts / mst | mp4 / webm / mkv / mov / gif / jpg（抽帧）/ mp3 / m4a / wav / flac / ogg / aac / opus / wma |
 | 万能转码 | FFmpeg 可解的常见音视频 | 14 种（MP4 H.264/H.265、MKV、MOV、AVI、WMV、FLV、WebM、MP3、M4A、AAC、WAV、FLAC、OGG） |
 | 编码工具箱 | 文本 | Base64 / URL / HEX / Unicode 双向转换 |
+| 压缩与解压 | 多个文件 / zip | zip；解压保留目录结构，GBK 文件名自动识别 |
+| 历史记录 | — | 最近 120 条输出，可再次分享 |
 
 文档转换只处理文字和表格，不保留版式。PDF 转 DOCX 是个例外：文字按 PDF 里的坐标摆放，图片和表格线也在原位，导出后文字仍可编辑；扫描件，或者字体缺 Unicode 映射时，会退回每页一张图的图片版。PDF 转 PPTX 同样是逐页图片；PDF 转文本要有文字层，中文 CID 字体读 ToUnicode 表，简单字体读 /Encoding /Differences。
 
@@ -29,8 +31,8 @@ Release 页面提供两个包，功能相同，区别是内置的 FFmpeg 原生�
 
 | 文件 | 体积 | 说明 |
 |---|---|---|
-| `yuan-format-forge_1.5.4_arm64.apk` | 27.0 MB | 只含 arm64-v8a |
-| `yuan-format-forge_1.5.4_full.apk` | 54.4 MB | arm64-v8a + armeabi-v7a |
+| `yuan-format-forge_1.6.0_arm64.apk` | 27.0 MB | 只含 arm64-v8a |
+| `yuan-format-forge_1.6.0_full.apk` | 54.4 MB | arm64-v8a + armeabi-v7a |
 
 签名证书（自签名，与历史版本一致，可覆盖升级）：
 
@@ -77,8 +79,11 @@ app/                     Android 工程
     VideoActivity.java   换壳 / GIF / 抽帧 / 音轨
     ConvertActivity.java 万能转码
     CodecActivity.java   编码工具箱
+    ZipActivity.java     压缩与解压
+    HistoryActivity.java 历史记录
     AboutActivity.java   许可与版本信息
     Picker.java          文件选择与类型判断
+    History.java         最近 120 条输出记录
     Ui.java              通用界面工具
     core/                无 Android 依赖的转换实现
       DocMatrix.java     文档矩阵入口
@@ -109,6 +114,9 @@ docs/                    使用说明、构建说明
 - PDF 转 DOCX 按页面坐标摆放，旋转文字、跨栏排版可能对不齐；扫描件只能出图片版。
 - GIF 最长 60 秒，帧率高于 20 时部分浏览器播放速度可能不准。
 - 视频重编码比较慢，10 分钟 1080p 大约要 1 到 4 分钟。
+- 单次读取的文件上限 256 MB，超出会直接提示。
+- 压缩只做 ZIP，不支持 RAR、7z 和加密压缩包；单包条目不超过 20000 条，解压后总量不超过 2 GB。
+- 平板和横屏是整页居中、首页多列，PDF 这类页面还没做左右双栏；旋转屏幕时转换中的任务会重来。
 
 
 ## 许可
@@ -116,6 +124,7 @@ docs/                    使用说明、构建说明
 GPL-3.0-or-later。内置 ffmpeg-kit-full-gpl，包含 x264、x265，因此整体按 GPL 分发。第三方组件与上游源码地址见 `THIRD_PARTY_NOTICES.md`。
 
 H.264 / H.265 涉及专利池授权，本项目未取得许可，请勿用于商业分发。本项目与「格式工厂 / FormatFactory」无关。
+
 
 
 

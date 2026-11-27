@@ -46,7 +46,8 @@ public final class Hls {
 
     /** 缓存里的 HLS 工作目录 */
     public static File dir(Context c) {
-        return new File(new File(c.getCacheDir(), "convert"), "hls");
+        // 走 Ui.workDir：长片的分片副本放在应用外部私有目录，不会被系统当缓存清掉
+        return Ui.workDir(c, "hls");
     }
 
     public static void clean(Context c) {

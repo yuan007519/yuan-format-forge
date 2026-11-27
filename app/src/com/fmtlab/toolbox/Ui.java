@@ -11,6 +11,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.text.TextUtils;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
@@ -55,6 +56,152 @@ public final class Ui {
         return d;
     }
 
+    private static final String TAG_COLUMN = "fmt_tablet_column";
+    private static final String TAG_TWOPANE = "fmt_two_pane";
+    /** 单列时最多 840dp，双栏时放到 1180dp，再宽就留着两边空白 */
+    private static final int SINGLE_MAX_DP = 840;
+    private static final int TWO_PANE_MAX_DP = 1180;
+
+    /** 是不是平板宽度（最小宽度 >= 600dp；这个值旋转不会变，适合做布局判断） */
+    public static boolean isWide(Context c) {
+        return c != null && c.getResources().getConfiguration().smallestScreenWidthDp >= 600;
+    }
+
+    /** 当前屏幕宽度（dp） */
+    public static int screenDp(Context c) {
+        android.util.DisplayMetrics dm = c.getResources().getDisplayMetrics();
+        if (dm.density <= 0) return 360;
+        return Math.round(dm.widthPixels / dm.density);
+    }
+
+    /**
+     * 平板双栏（1.6.1）：把页面里的卡片重新排成左右两栏。
+     *
+     * leftViews 放「选文件 + 选项」，rightViews 放「进度 / 队列 / 结果」。
+     * 手机（最小宽度 < 600dp）直接返回 false，页面保持原来的单列，一个 view 都不动。
+     *
+     * 为什么用「搬家」而不是写两套 XML：这套工程基本都是手写 View，页面里的卡片
+     * 本来就在同一个垂直 LinearLayout 里，按对象搬进两个新栏最省事，也不会影响
+     * 手机上原有的显示顺序。左右两栏都用 weight=1，旋转后宽度自动跟着变。
+     */
+    public static boolean twoPane(Activity a, ViewGroup body, View[] leftViews, View[] rightViews) {
+        if (a == null || body == null || leftViews == null || leftViews.length == 0) return false;
+        if (!isWide(a)) return false;
+        Object tag = body.getTag();
+        if (tag != null && TAG_TWOPANE.equals(tag)) return false;
+
+        LinearLayout wrap = new LinearLayout(a);
+        wrap.setOrientation(LinearLayout.HORIZONTAL);
+        wrap.setGravity(Gravity.TOP);
+        wrap.setTag(TAG_TWOPANE);
+
+        LinearLayout left = new LinearLayout(a);
+        left.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout right = new LinearLayout(a);
+        right.setOrientation(LinearLayout.VERTICAL);
+
+        // 双栏放在第一张左侧卡片原来的位置，顶栏和页脚顺序保持不变
+        int at = Math.max(0, body.indexOfChild(leftViews[0]));
+
+        for (View v : leftViews) {
+            if (v == null) continue;
+            // 1.6.1：这些 view 不一定直接挂在 body 上（例如队列面板挂在结果卡里），
+            // 所以要从它真正的父容器里摘出来，否则 addView 会报 "already has a parent"
+            ViewParent p = v.getParent();
+            if (p instanceof ViewGroup) ((ViewGroup) p).removeView(v);
+            left.addView(v);
+        }
+        for (View v : rightViews) {
+            if (v == null) continue;
+            ViewParent p = v.getParent();
+            if (p instanceof ViewGroup) ((ViewGroup) p).removeView(v);
+            right.addView(v);
+        }
+
+        wrap.addView(left, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        View gap = new View(a);
+        wrap.addView(gap, new LinearLayout.LayoutParams(dpi(a, 20), 1));
+        wrap.addView(right, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        body.addView(wrap, Math.min(at, body.getChildCount()));
+        body.setTag(TAG_TWOPANE);
+        ViewParent parent = body.getParent();
+        if (parent instanceof View) ((View) parent).setTag(TAG_TWOPANE);
+        return true;
+    }
+
+    /**
+     * 平板：把顶栏以下的内容收在一列居中里，避免整页拉满。
+     * 页面已经做过双栏时，这一列放宽到 1180dp，否则保持 840dp。
+     */
+    public static void centerTabletContent(Activity a) {
+        if (a == null) return;
+        if (!isWide(a)) return;
+        int screenDp = screenDp(a);
+        View content = a.findViewById(android.R.id.content);
+        if (!(content instanceof ViewGroup) || ((ViewGroup) content).getChildCount() == 0) return;
+        ViewGroup page = (ViewGroup) ((ViewGroup) content).getChildAt(0);
+        if (page instanceof android.widget.ScrollView && page.getChildCount() > 0) {
+            page = (ViewGroup) page.getChildAt(0);
+        }
+        if (page == null || page.getChildCount() < 2) return;
+        Object tag = page.getTag();
+        boolean twoPane = tag != null && TAG_TWOPANE.equals(tag);
+        int max = twoPane ? TWO_PANE_MAX_DP : SINGLE_MAX_DP;
+        if (!twoPane && screenDp <= max) return;
+        int width = Math.min(max, Math.max(320, screenDp - 40));
+        LinearLayout column = new LinearLayout(a);
+        column.setOrientation(LinearLayout.VERTICAL);
+        column.setTag(TAG_COLUMN);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                dpi(a, width), ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.gravity = Gravity.CENTER_HORIZONTAL;
+        column.setLayoutParams(lp);
+        int count = page.getChildCount();
+        View[] moved = new View[count - 1];
+        for (int i = 1; i < count; i++) moved[i - 1] = page.getChildAt(i);
+        page.removeViews(1, count - 1);
+        for (View v : moved) column.addView(v);
+        page.addView(column);
+    }
+
+    /**
+     * 旋转后重算居中列宽度（1.6.1）。
+     * 页面不重建（manifest 里声明了 configChanges），但 820dp 的固定列宽在竖屏上
+     * 会超出屏幕，所以 onConfigurationChanged 里调一次这里把宽度改成当前合适的值。
+     * 双栏用的是 weight，宽度本来就跟着屏幕走，不用另算。
+     */
+    public static void refreshTabletLayout(Activity a) {
+        if (a == null) return;
+        View content = a.findViewById(android.R.id.content);
+        if (!(content instanceof ViewGroup)) return;
+        ViewGroup root = (ViewGroup) content;
+        View column = findTagged(root, TAG_COLUMN);
+        if (column == null) return;
+        boolean twoPane = findTagged(root, TAG_TWOPANE) != null;
+        int max = twoPane ? TWO_PANE_MAX_DP : SINGLE_MAX_DP;
+        int want = Math.min(max, Math.max(320, screenDp(a) - 40));
+        LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) column.getLayoutParams();
+        if (lp == null) return;
+        if (lp.width != dpi(a, want)) {
+            lp.width = dpi(a, want);
+            lp.gravity = Gravity.CENTER_HORIZONTAL;
+            column.setLayoutParams(lp);
+        }
+    }
+
+    private static View findTagged(ViewGroup root, String tag) {
+        if (root == null) return null;
+        for (int i = 0; i < root.getChildCount(); i++) {
+            View v = root.getChildAt(i);
+            if (v.getTag() != null && tag.equals(v.getTag())) return v;
+            if (v instanceof ViewGroup) {
+                View r = findTagged((ViewGroup) v, tag);
+                if (r != null) return r;
+            }
+        }
+        return null;
+    }
     public static void copy(Activity a, String text) {
         if (TextUtils.isEmpty(text)) {
             toast(a, "没有可复制的内容");
@@ -77,6 +224,11 @@ public final class Ui {
     }
 
     public static byte[] readBytes(Context c, Uri uri) throws IOException {
+        long known = sizeOf(c, uri);
+        if (known > 256L * 1024 * 1024) {
+            throw new IOException("文件超过 256 MB（" + size(known) + "），这类工具会把内容整个读进内存，"
+                    + "请改用视频 / 音频工具，或先用压缩工具处理");
+        }
         ContentResolver cr = c.getContentResolver();
         InputStream in = cr.openInputStream(uri);
         if (in == null) throw new IOException("无法读取该文件");
@@ -84,11 +236,86 @@ public final class Ui {
             ByteArrayOutputStream bo = new ByteArrayOutputStream();
             byte[] buf = new byte[8192];
             int n;
-            while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
+            long total = 0;
+            while ((n = in.read(buf)) > 0) {
+                total += n;
+                if (total > 256L * 1024 * 1024) {
+                    throw new IOException("文件超过 256 MB，已停止读取，避免内存不足");
+                }
+                bo.write(buf, 0, n);
+            }
             return bo.toByteArray();
         } finally {
             try { in.close(); } catch (Exception ignored) {}
         }
+    }
+
+    /** 文件大小；拿不到返回 -1 */
+    public static long sizeOf(Context c, Uri uri) {
+        if (c == null || uri == null) return -1;
+        android.database.Cursor cur = null;
+        try {
+            cur = c.getContentResolver().query(uri,
+                    new String[]{android.provider.OpenableColumns.SIZE}, null, null, null);
+            if (cur != null && cur.moveToFirst()) {
+                int idx = cur.getColumnIndex(android.provider.OpenableColumns.SIZE);
+                if (idx >= 0 && !cur.isNull(idx)) return cur.getLong(idx);
+            }
+        } catch (Exception ignored) {
+        } finally {
+            try { if (cur != null) cur.close(); } catch (Exception ignored) {}
+        }
+        try {
+            android.content.res.AssetFileDescriptor fd =
+                    c.getContentResolver().openAssetFileDescriptor(uri, "r");
+            if (fd != null) {
+                long len = fd.getLength();
+                fd.close();
+                if (len > 0) return len;
+            }
+        } catch (Exception ignored) {}
+        return -1;
+    }
+
+    /**
+     * 工作缓存目录。放在应用外部私有目录（getExternalFilesDir）而不是 getCacheDir：
+     * 缓存目录在空间紧张时会被系统静默清掉，长视频的副本放在那里容易跑到一半被删。
+     */
+    public static File workDir(Context c, String name) {
+        File base = null;
+        try {
+            base = c.getExternalFilesDir(null);
+        } catch (Throwable ignored) {}
+        if (base == null) base = c.getFilesDir();
+        File dir = new File(new File(base, "cache"), name);
+        if (!dir.exists()) dir.mkdirs();
+        return dir;
+    }
+
+    /** 该目录所在分区还能写多少字节；取不到返回 -1 */
+    public static long freeSpace(File dir) {
+        try {
+            android.os.StatFs st = new android.os.StatFs(dir.getAbsolutePath());
+            return st.getAvailableBytes();
+        } catch (Throwable e) {
+            return -1;
+        }
+    }
+
+    /** 空间预检：不够就抛人话错误，别让用户跑到一半才失败 */
+    public static void requireSpace(File dir, long need, String what) throws IOException {
+        long free = freeSpace(dir);
+        if (free < 0 || need <= 0) return;
+        if (free < need) {
+            throw new IOException("空间不够：" + what + "大约要 " + size(need)
+                    + "，这个分区只剩 " + size(free) + "。清点空间或换个更短的片段再试。");
+        }
+    }
+
+    /** 转码前的空间预估：输入副本 + 输出（按原片 1.2 估） + 100 MB 余量 */
+    public static long needForConvert(long inputBytes) {
+        if (inputBytes <= 0) return 100L * 1024 * 1024;
+        return inputBytes + (long) (inputBytes * 1.2) + 100L * 1024 * 1024;
     }
 
     public static String size(long bytes) {
@@ -310,6 +537,12 @@ public final class Ui {
 
     /** 结果行：文件名 + 说明 + 分享按钮 */
     public static LinearLayout resultRow(Activity a, File f, String meta, View.OnClickListener onShare) {
+        History.add(a, "输出", f, meta);
+        return resultRowQuiet(a, f, meta, onShare);
+    }
+
+    /** 同上，但不再写历史记录（历史页自己用） */
+    public static LinearLayout resultRowQuiet(Activity a, File f, String meta, View.OnClickListener onShare) {
         LinearLayout row = new LinearLayout(a);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
@@ -452,3 +685,6 @@ public final class Ui {
         }
     }
 }
+
+
+

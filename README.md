@@ -33,8 +33,8 @@ Release 页面提供两个包，功能相同，区别是内置的 FFmpeg 原生�
 
 | 文件 | 体积 | 说明 |
 |---|---|---|
-| `yuan-format-forge_1.6.5_arm64.apk` | 27.7 MB | 只含 arm64-v8a |
-| `yuan-format-forge_1.6.5_full.apk` | 55.1 MB | arm64-v8a + armeabi-v7a |
+| `yuan-format-forge_1.6.6_arm64.apk` | 27.7 MB | 只含 arm64-v8a |
+| `yuan-format-forge_1.6.6_full.apk` | 55.1 MB | arm64-v8a + armeabi-v7a |
 
 签名证书（自签名，与历史版本一致，可覆盖升级）：
 

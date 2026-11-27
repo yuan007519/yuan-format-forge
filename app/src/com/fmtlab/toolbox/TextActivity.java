@@ -67,6 +67,7 @@ public class TextActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_text);
+        Ui.centerTabletContent(this);
         exec = Executors.newSingleThreadExecutor();
 
         findViewById(R.id.btnBack).setOnClickListener(new View.OnClickListener() {
@@ -417,6 +418,7 @@ public class TextActivity extends Activity {
         }
         try {
             File f = Ui.writeTemp(this, "修复结果.txt", data);
+            History.add(this, "文本", f, Ui.size(f.length()));
             List<File> list = new ArrayList<>();
             list.add(f);
             Ui.shareFiles(this, list, "文本乱码修复结果");
@@ -428,8 +430,8 @@ public class TextActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (resultCode != RESULT_OK || data == null) return;
-        Uri uri = data.getData();
+        if (resultCode != RESULT_OK) return;
+        Uri uri = Picker.firstUri(data);
         if (requestCode == REQ_PICK_TXT && uri != null) {
             loadTextFile(uri);
         } else if (requestCode == REQ_SAVE_TXT && uri != null && pendingBytes != null) {
@@ -447,5 +449,12 @@ public class TextActivity extends Activity {
         super.onDestroy();
         if (exec != null) exec.shutdownNow();
         handler.removeCallbacksAndMessages(null);
+    }
+
+    @Override
+    public void onConfigurationChanged(android.content.res.Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        // 1.6.1：旋转不再重建页面，这里只把平板居中列的宽度按新屏幕重算一次
+        Ui.refreshTabletLayout(this);
     }
 }

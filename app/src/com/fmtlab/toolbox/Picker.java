@@ -54,6 +54,51 @@ public final class Picker {
         return i;
     }
 
+    /**
+     * 取选中的第一个文件。
+     *
+     * 为什么不能只读 data.getData()：部分 ROM（实测 vivo）的系统文件选择器即使单选，
+     * 结果也只放在 ClipData 里，getData() 是 null，页面就"选了没反应"。这里两种都认。
+     */
+    public static Uri firstUri(Intent data) {
+        if (data == null) return null;
+        Uri u = data.getData();
+        if (u != null) return u;
+        android.content.ClipData clip = data.getClipData();
+        if (clip != null && clip.getItemCount() > 0) {
+            return clip.getItemAt(0).getUri();
+        }
+        return null;
+    }
+
+    /** 授权整个文件夹（m3u8 要用它来读同目录分片） */
+    public static boolean launchTree(Activity a, int requestCode) {
+        try {
+            a.startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), requestCode);
+            return true;
+        } catch (Exception e) {
+            Ui.toast(a, "无法打开文件夹选择器");
+            return false;
+        }
+    }
+
+    /** 单文件也可以用多选入口，这里把选中的全部 uri 取出来 */
+    public static java.util.List<Uri> allUris(Intent data) {
+        java.util.List<Uri> out = new java.util.ArrayList<Uri>();
+        if (data == null) return out;
+        android.content.ClipData clip = data.getClipData();
+        if (clip != null) {
+            for (int i = 0; i < clip.getItemCount(); i++) {
+                Uri u = clip.getItemAt(i).getUri();
+                if (u != null) out.add(u);
+            }
+            if (!out.isEmpty()) return out;
+        }
+        Uri u = data.getData();
+        if (u != null) out.add(u);
+        return out;
+    }
+
     public static boolean launch(Activity a, int requestCode, boolean multiple) {
         try {
             a.startActivityForResult(open(multiple), requestCode);

@@ -184,6 +184,13 @@ public class ConvertActivity extends Activity {
                 try {
                     final String text = Hls.readText(ConvertActivity.this, srcUri);
                     final int refs = Hls.refCount(text);
+                    // 空间预检：先把选中的文件体积加起来，别等复制到一半才写满
+                    long sum = 0;
+                    if (hlsSel != null) for (Uri u : hlsSel) {
+                        long s = Ui.sizeOf(ConvertActivity.this, u);
+                        if (s > 0) sum += s;
+                    }
+                    Ui.requireSpace(Hls.dir(ConvertActivity.this), Ui.needForConvert(sum), "这段 HLS");
                     handler.post(new Runnable() {
                         @Override
                         public void run() {
@@ -203,7 +210,7 @@ public class ConvertActivity extends Activity {
                             sb.append(srcName).append(" · 本地 HLS · ").append(refs).append(" 个分片");
                             if (durationSec > 0) sb.append(" · ").append(fmtTime(durationSec * 1000));
                             sb.append(" · ").append(Ui.size(index.length()));
-                            tvAnyStatus.setText(sb.toString() + "\n已就绪，点“开始转码”。");
+                            tvAnyStatus.setText(sb.toString() + "\n" + readyHint());
                         }
                     });
                 } catch (final Hls.NeedFolder nf) {
@@ -244,17 +251,39 @@ public class ConvertActivity extends Activity {
                         sb.append(srcName).append(" · ").append(Ui.size(f.length()));
                         if (durationSec > 0) sb.append(" · ").append(fmtTime(durationSec * 1000));
                         if (srcHeight > 0) sb.append(" · 高 ").append(srcHeight).append("px");
-                        tvAnyStatus.setText(sb.toString() + "\n已就绪，点“开始转码”。");
+                        tvAnyStatus.setText(sb.toString() + "\n" + readyHint());
                     }
                 });
             }
         });
     }
 
+    /** 就绪提示：长视频额外提醒耗电与切后台的风险 */
+    private String readyHint() {
+        if (durationSec >= 300) {
+            return "已就绪，点“开始转码”。这段较长（" + fmtTime(durationSec * 1000)
+                    + "），转码期间请保持本页在前台、最好插着电。";
+        }
+        return "已就绪，点“开始转码”。";
+    }
+
     private File copyToCache() {
-        File dir = new File(getCacheDir(), "convert");
-        if (!dir.exists()) dir.mkdirs();
+        File dir = Ui.workDir(this, "convert");
         for (File old : dir.listFiles()) old.delete();
+        // 空间预检：输入副本 + 预计输出 + 余量，不够就直接说清楚
+        long srcSize = Ui.sizeOf(this, srcUri);
+        try {
+            Ui.requireSpace(dir, Ui.needForConvert(srcSize), "这个文件的转码");
+        } catch (final Exception e) {
+            final String msg = e.getMessage() == null ? "空间不足" : e.getMessage();
+            handler.post(new Runnable() {
+                @Override
+                public void run() {
+                    tvAnyStatus.setText("失败：" + msg);
+                }
+            });
+            return null;
+        }
         String ext = Ui.ext(srcName);
         File dest = new File(dir, "input." + (ext.length() == 0 ? "bin" : ext));
         handler.post(new Runnable() {
@@ -379,14 +408,20 @@ public class ConvertActivity extends Activity {
                                 public void run() {
                                     double t = st.getTime();
                                     String pct = "";
+                                    String eta = "";
+                                    double speed = st.getSpeed();
                                     if (durationSec > 0) {
                                         int p = (int) Math.min(100,
                                                 Math.round(t * 100.0 / (durationSec * 1000.0)));
                                         pct = " · " + p + "%";
+                                        double restMs = durationSec * 1000.0 - t;
+                                        if (restMs > 0 && speed > 0.05) {
+                                            eta = " · 预计还要 " + fmtTime((long) (restMs / speed));
+                                        }
                                     }
                                     tvAnyStatus.setText("正在转码" + pct + " · 已处理 "
-                                            + fmtTime((long) t) + " · "
-                                            + String.format(java.util.Locale.US, "%.1f", st.getSpeed()) + "x");
+                                            + fmtTime((long) t) + eta + " · "
+                                            + String.format(java.util.Locale.US, "%.1f", speed) + "x");
                                 }
                             });
                         }
@@ -412,6 +447,16 @@ public class ConvertActivity extends Activity {
                 return;
             }
             tvAnyStatus.setText("完成：" + out.getName() + " · " + Ui.size(out.length()));
+            // 大文件副本不留在手机里：转完就删，避免几 GB 的临时文件长期占空间；
+            // 小文件留着，方便换个输出格式再转一次而不用重新选。
+            if (cacheFile != null && cacheFile.length() > 64L * 1024 * 1024) {
+                cacheFile.delete();
+                cacheFile = null;
+            }
+            long staged = 0;
+            File[] stagedFiles = Hls.dir(this).listFiles();
+            if (stagedFiles != null) for (File x : stagedFiles) staged += x.length();
+            if (staged > 64L * 1024 * 1024) Hls.clean(this);
             final File f = out;
             anyResultHost.addView(Ui.resultRow(this, f,
                     "转码完成 · " + Ui.size(f.length()),

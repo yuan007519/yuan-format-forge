@@ -174,10 +174,10 @@ public class VideoActivity extends Activity {
                 tvOutHint.setText("MOV 换壳：苹果生态与剪辑软件通用的容器，同样是流拷贝，一条视频几秒完成。");
                 break;
             case 4:
-                tvOutHint.setText("GIF：由 FFmpeg 内核逐帧取画并用 256 色智能调色板量化（palettegen），比旧版逐帧局部色表更干净、不闪色。");
+                tvOutHint.setText("GIF：由 FFmpeg 内核逐帧取画并用 256 色智能调色板量化（palettegen）。单次最长 10 分钟，超过 60 秒会按时长自动降帧率和宽度，免得文件过大。");
                 break;
             case 5:
-                tvOutHint.setText("抽帧：按固定间隔导出 JPG 图片，用来做封面、截图集、分镜参考。");
+                tvOutHint.setText("抽帧：按固定间隔导出 JPG 图片，用来做封面、截图集、分镜参考；单次最多 300 张，超过时把间隔调大。");
                 break;
             default:
                 tvOutHint.setText("音轨导出：只保留声音，容器可换 MP3 / M4A / WAV / FLAC / OGG / AAC / OPUS / WMA，视频画面不保留。");
@@ -325,13 +325,14 @@ public class VideoActivity extends Activity {
         if (cacheIn != null && cacheIn.exists() && cacheIn.length() > 0 && videoName.equals(cacheName)) {
             return cacheIn;
         }
-        File dir = new File(getCacheDir(), "video");
+        File dir = Ui.workDir(this, "video");
         if (dir.exists()) {
             File[] olds = dir.listFiles();
             if (olds != null) for (File f : olds) f.delete();
         } else {
             dir.mkdirs();
         }
+        Ui.requireSpace(dir, Ui.needForConvert(Ui.sizeOf(this, videoUri)), "这个文件的处理");
         String ext = Ui.ext(videoName);
         File dest = new File(dir, "input." + (ext.length() == 0 ? "bin" : ext));
 
@@ -739,7 +740,15 @@ public class VideoActivity extends Activity {
         double dur = parseSec(etGifDuration, 3);
         if (start < 0) start = 0;
         if (dur <= 0) throw new Exception("时长要大于 0 秒");
-        if (dur > 60) throw new Exception("GIF 单次最多 60 秒，长视频请先抽帧或分段");
+        if (dur > 600) throw new Exception("GIF 单次最多 10 分钟——再长体积会失控，建议改用「抽帧图片」或直接转成视频格式");
+        // 放开 60 秒限制后按时长自动降档，避免动辄几百 MB 的 GIF
+        String downgrade = "";
+        if (dur > 60) {
+            int fpsCap = dur > 300 ? 8 : 10;
+            int wCap = dur > 300 ? 320 : 480;
+            if (fps > fpsCap) { fps = fpsCap; downgrade += "帧率降到 " + fps + "fps"; }
+            if (targetW > wCap) { targetW = wCap; downgrade += (downgrade.isEmpty() ? "" : "、") + "宽度降到 " + targetW + "px"; }
+        }
 
         final long expectMs = (long) Math.round(dur * 1000);
         File out = new File(Ui.outDir(this), uniqueName(Ui.baseName(videoName) + "_动图.gif"));
@@ -767,7 +776,8 @@ public class VideoActivity extends Activity {
                 if (out.exists()) out.delete();
                 throw new Exception(tailLog(s, 260));
             }
-            lastNote = "GIF 动图 · 第 " + num(start) + "s 起 " + num(dur) + "s · " + fps + "fps · 宽 " + targetW + "px";
+            lastNote = "GIF 动图 · 第 " + num(start) + "s 起 " + num(dur) + "s · " + fps + "fps · 宽 " + targetW + "px"
+                    + (downgrade.isEmpty() ? "" : "（自动" + downgrade + "）");
             return out;
         } catch (Throwable e) {
             if (out.exists()) out.delete();
@@ -809,7 +819,12 @@ public class VideoActivity extends Activity {
             long segMs = Math.min((long) (dur * 1000), durMs - (long) (start * 1000));
             if (segMs <= 0) throw new Exception("起始时间超出了视频长度");
             int frames = (int) Math.round(segMs / 1000.0 * fps);
-            frames = Math.max(1, Math.min(120, frames));
+            // 系统解码器这条路是逐帧进 GIF 编码器，帧太多会占内存也慢；FFmpeg 那条没有这个限制
+            frames = Math.max(1, frames);
+            if (frames > 900) {
+                throw new Exception("这段太长，系统解码器版本最多 900 帧（约 "
+                        + Math.round(900.0 / fps) + " 秒），请缩短时长");
+            }
 
             File out = new File(Ui.outDir(this), uniqueName(Ui.baseName(videoName) + "_动图.gif"));
             fos = new FileOutputStream(out);
@@ -910,7 +925,7 @@ public class VideoActivity extends Activity {
             if (!dir.exists()) dir.mkdirs();
 
             int count = (int) Math.floor(durMs / (interval * 1000.0));
-            count = Math.max(1, Math.min(60, count));
+            count = Math.max(1, Math.min(300, count));
             int targets = count;
             for (int i = 0; i < count; i++) {
                 long tUs = (long) (i * interval * 1_000_000L);
@@ -971,7 +986,7 @@ public class VideoActivity extends Activity {
             throw new Exception("系统解码器不行（" + reason + "），FFmpeg 抽帧也失败：" + tailLog(s, 240));
         }
         List<File> files = new ArrayList<>();
-        for (int i = 1; i <= 60; i++) {
+        for (int i = 1; i <= 300; i++) {
             File raw = new File(dir, String.format(java.util.Locale.US, "p%03d.jpg", i));
             if (!raw.exists()) break;
             File dst = new File(dir, String.format(java.util.Locale.US, "帧%03d.jpg", i));
@@ -981,8 +996,8 @@ public class VideoActivity extends Activity {
             }
             files.add(dst);
         }
-        // 多出来的图删掉，和系统路径一样最多 60 张
-        int extra = 61;
+        // 多出来的图删掉，和系统路径一样最多 300 张
+        int extra = 301;
         while (true) {
             File raw = new File(dir, String.format(java.util.Locale.US, "p%03d.jpg", extra));
             if (!raw.exists()) break;

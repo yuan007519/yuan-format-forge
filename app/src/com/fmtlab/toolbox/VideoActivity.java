@@ -88,6 +88,7 @@ public class VideoActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_video);
+        Ui.centerTabletContent(this);
         exec = Executors.newSingleThreadExecutor();
 
         ((TextView) findViewById(R.id.tvTitle)).setText("视频工具");
@@ -187,8 +188,8 @@ public class VideoActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQ_PICK && resultCode == RESULT_OK && data != null && data.getData() != null) {
-            videoUri = data.getData();
+        if (requestCode == REQ_PICK && resultCode == RESULT_OK && Picker.firstUri(data) != null) {
+            videoUri = Picker.firstUri(data);
             videoName = Ui.displayName(this, videoUri);
             cacheIn = null;
             cacheName = "";
@@ -1035,5 +1036,12 @@ public class VideoActivity extends Activity {
         super.onDestroy();
         if (exec != null) exec.shutdownNow();
         handler.removeCallbacksAndMessages(null);
+    }
+
+    @Override
+    public void onConfigurationChanged(android.content.res.Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        // 1.6.1：旋转不再重建页面，这里只把平板居中列的宽度按新屏幕重算一次
+        Ui.refreshTabletLayout(this);
     }
 }

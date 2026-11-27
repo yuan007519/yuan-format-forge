@@ -36,6 +36,7 @@ import java.util.concurrent.Executors;
 public class ConvertActivity extends Activity {
 
     private static final int REQ_PICK = 81;
+    private static final int REQ_TREE = 82;
 
     private static final String[] OUT_LABELS = {
             "MP4 · H.264", "MP4 · H.265", "MKV", "MOV", "AVI", "WMV", "FLV", "WebM",
@@ -58,6 +59,7 @@ public class ConvertActivity extends Activity {
     private Ui.Chips outChips, qualityChips;
 
     private Uri srcUri;
+    private List<Uri> hlsSel;
     private String srcName = "";
     private File cacheFile;
     private long durationSec = 0;
@@ -72,6 +74,7 @@ public class ConvertActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_convert);
+        Ui.centerTabletContent(this);
         exec = Executors.newSingleThreadExecutor();
 
         ((TextView) findViewById(R.id.tvTitle)).setText("万能转码");
@@ -115,7 +118,10 @@ public class ConvertActivity extends Activity {
             if (v != null && v.length() > 0) ver = v;
         } catch (Throwable ignored) {}
         tvAnyInfo.setText("内核 FFmpeg " + ver + "，已内置 x264 / x265 / VP9 / FLAC / MP3 编码器。\n"
-                + "支持输入：AVI / WMV / RMVB / MKV / MPG / VOB / TS / FLV / MOV / MP4 等，以及几乎所有音频格式。");
+                + "支持输入：AVI / WMV / RMVB / MKV / MPG / VOB / TS / FLV / MOV / MP4 等，以及几乎所有音频格式。\n"
+                + "本地 M3U8（HLS）：索引和同目录分片都在手机上时可以直接转成单个 MP4。\n"
+                + "选文件时长按 m3u8 进多选，把同目录分片一起选中最稳；"
+                + "在线 m3u8 链接和需要联网取密钥的加密 HLS 不支持（本应用不联网）。");
 
         findViewById(R.id.btnPickAny).setOnClickListener(new View.OnClickListener() {
             @Override
@@ -124,7 +130,9 @@ public class ConvertActivity extends Activity {
                     Ui.toast(ConvertActivity.this, "请先等当前转码结束或取消");
                     return;
                 }
-                Picker.launch(ConvertActivity.this, REQ_PICK, false);
+                // 用多选模式：这台 vivo 的单选模式点「打开」不回传结果（只把结果塞进 ClipData
+                // 的机型实测单选拿不到），多选模式稳定回传，这里只取第一个文件。
+                Picker.launch(ConvertActivity.this, REQ_PICK, true);
             }
         });
 
@@ -139,14 +147,86 @@ public class ConvertActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQ_PICK && resultCode == RESULT_OK && data != null && data.getData() != null) {
-            srcUri = data.getData();
+        Uri picked = resultCode == RESULT_OK ? Picker.firstUri(data) : null;
+        int pickedCount = 1;
+        if (data != null && data.getClipData() != null) pickedCount = data.getClipData().getItemCount();
+        if (requestCode == REQ_PICK && picked != null) {
+            // 多选时 ClipData 的顺序不一定等于点击顺序，先把 m3u8 索引挑出来
+            List<Uri> all = Picker.allUris(data);
+            Uri hlsUri = null;
+            for (Uri u : all) {
+                if (Hls.isHls(Ui.displayName(this, u))) { hlsUri = u; break; }
+            }
+            srcUri = hlsUri != null ? hlsUri : picked;
             srcName = Ui.displayName(this, srcUri);
             anyResultHost.removeAllViews();
-            tvAnyStatus.setText("已选择：" + srcName + "，准备中…");
+            tvAnyStatus.setText(pickedCount > 1
+                    ? "已选择 " + pickedCount + " 项，本次只转第一个：" + srcName
+                    : "已选择：" + srcName + "，准备中…");
             tvAnyLog.setText("");
+            if (hlsUri != null) {
+                // m3u8 只是索引，真正要转的数据在同目录的分片里
+                hlsSel = all;
+                prepareHls(null);
+                return;
+            }
             prepare();
+        } else if (requestCode == REQ_TREE && picked != null) {
+            if (srcUri != null && Hls.isHls(srcName)) prepareHls(picked);
         }
+    }
+
+    /** 本地 HLS：索引 + 同目录分片一起搬进缓存，全程离线 */
+    private void prepareHls(final Uri tree) {
+        exec.execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    final String text = Hls.readText(ConvertActivity.this, srcUri);
+                    final int refs = Hls.refCount(text);
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            tvAnyStatus.setText("HLS 索引 · 共 " + refs + " 个分片，正在收集本地分片…");
+                        }
+                    });
+                    final File index = (hlsSel != null && hlsSel.size() > 1)
+                            ? Hls.stageSelected(ConvertActivity.this, hlsSel, Hls.dir(ConvertActivity.this))
+                            : Hls.stage(ConvertActivity.this, srcUri, tree, text);
+                    cacheFile = index;
+                    durationSec = Hls.totalSeconds(text);
+                    srcHeight = 0;
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            StringBuilder sb = new StringBuilder();
+                            sb.append(srcName).append(" · 本地 HLS · ").append(refs).append(" 个分片");
+                            if (durationSec > 0) sb.append(" · ").append(fmtTime(durationSec * 1000));
+                            sb.append(" · ").append(Ui.size(index.length()));
+                            tvAnyStatus.setText(sb.toString() + "\n已就绪，点“开始转码”。");
+                        }
+                    });
+                } catch (final Hls.NeedFolder nf) {
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            // 目录授权这条路在部分 ROM 上弹不出可用的根目录，直接教用户多选更靠谱
+                            tvAnyStatus.setText(nf.getMessage() + "\n"
+                                    + "解决办法：重新点「选择文件」，长按 m3u8 进入多选，"
+                                    + "把同目录的分片一起勾上再点「打开」。");
+                        }
+                    });
+                } catch (final Exception e) {
+                    final String msg = e.getMessage() == null ? "读取失败" : e.getMessage();
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            tvAnyStatus.setText("失败：" + msg);
+                        }
+                    });
+                }
+            }
+        });
     }
 
     private void prepare() {
@@ -363,6 +443,10 @@ public class ConvertActivity extends Activity {
     private List<String> buildArgs(File in, File out, int outIdx, int q) {
         List<String> a = new ArrayList<String>();
         a.add("-y");
+        if (Hls.isHls(srcName)) {
+            // 分片扩展名五花八门时 FFmpeg 的 HLS 解复用器默认会拒绝，这里全放开
+            addArgs(a, "-allowed_extensions", "ALL");
+        }
         a.add("-i");
         a.add(in.getAbsolutePath());
 
@@ -481,5 +565,12 @@ public class ConvertActivity extends Activity {
         }
         if (exec != null) exec.shutdownNow();
         handler.removeCallbacksAndMessages(null);
+    }
+
+    @Override
+    public void onConfigurationChanged(android.content.res.Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        // 1.6.1：旋转不再重建页面，这里只把平板居中列的宽度按新屏幕重算一次
+        Ui.refreshTabletLayout(this);
     }
 }

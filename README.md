@@ -1,4 +1,4 @@
-﻿# 袁神的格式工坊（Yuan Format Forge）
+# 袁神的格式工坊（Yuan Format Forge）
 
 Android 端的本地文件格式转换工具。内置 FFmpeg 6.0，图片、PDF、Office 文档、字幕、音频、视频、文本编码转换都在设备上完成，不联网，也不声明任何权限。
 
@@ -18,12 +18,14 @@ Android 端的本地文件格式转换工具。内置 FFmpeg 6.0，图片、PDF�
 | 字幕 | srt / vtt / ass / ssa | srt / vtt / ass / ssa / txt |
 | 音频 | aac / flac / m4a / mp3 / ogg / opus / wav / wma | wav / m4a / aac / mp3 / flac / ogg / opus / wma |
 | 视频 | mp4 / m4v / m4s / mkv / mov / avi / flv / wmv / webm / ts / mts / m2ts / mst | mp4 / webm / mkv / mov / gif / jpg（抽帧）/ mp3 / m4a / wav / flac / ogg / aac / opus / wma |
-| 万能转码 | FFmpeg 可解的常见音视频，以及本地 m3u8（HLS）+ 同目录分片 | 14 种（MP4 H.264/H.265、MKV、MOV、AVI、WMV、FLV、WebM、MP3、M4A、AAC、WAV、FLAC、OGG） |
+| 万能转码 | FFmpeg 可解的常见音视频（可多选排队），以及本地 m3u8（HLS）+ 同目录分片 | 14 种（MP4 H.264/H.265、MKV、MOV、AVI、WMV、FLV、WebM、MP3、M4A、AAC、WAV、FLAC、OGG） |
 | 编码工具箱 | 文本 | Base64 / URL / HEX / Unicode 双向转换 |
 | 压缩与解压 | 多个文件 / zip | zip；解压保留目录结构，GBK 文件名自动识别 |
 | 历史记录 | — | 最近 120 条输出，可再次分享 |
 
 文档转换只处理文字和表格，不保留版式。PDF 转 DOCX 是个例外：文字按 PDF 里的坐标摆放，图片和表格线也在原位，导出后文字仍可编辑；扫描件，或者字体缺 Unicode 映射时，会退回每页一张图的图片版。PDF 转 PPTX 同样是逐页图片；PDF 转文本要有文字层，中文 CID 字体读 ToUnicode 表，简单字体读 /Encoding /Differences。
+
+万能转码可以多选，选中的文件按顺序排队逐个转，第几个失败了后面照常继续，最后给一句「共 N 个，成功几个、失败几个」。输出目录里已经有同名文件时，可选「另存」（自动加 (2)）或「覆盖」（直接换掉同名文件，适合反复试同一段素材）。
 
 ## 下载
 
@@ -31,8 +33,8 @@ Release 页面提供两个包，功能相同，区别是内置的 FFmpeg 原生�
 
 | 文件 | 体积 | 说明 |
 |---|---|---|
-| `yuan-format-forge_1.6.4_arm64.apk` | 27.7 MB | 只含 arm64-v8a |
-| `yuan-format-forge_1.6.4_full.apk` | 55.1 MB | arm64-v8a + armeabi-v7a |
+| `yuan-format-forge_1.6.5_arm64.apk` | 27.7 MB | 只含 arm64-v8a |
+| `yuan-format-forge_1.6.5_full.apk` | 55.1 MB | arm64-v8a + armeabi-v7a |
 
 签名证书（自签名，与历史版本一致，可覆盖升级）：
 
@@ -118,7 +120,7 @@ docs/                    使用说明、构建说明
 - 单次读取的文件上限 256 MB，超出会直接提示。
 - 压缩只做 ZIP，不支持 RAR、7z 和加密压缩包；单包条目不超过 20000 条，解压后总量不超过 2 GB。
 - 平板和横屏是整页居中、首页多列；PDF 与文档页在 600dp 以上改左右双栏；旋转屏幕不再中断正在进行的转换。
-- 本地 m3u8 只支持索引和分片都在手机上、且能被一并选中的情况；在线 http(s) m3u8、密钥要从网络取的 AES-128 加密 HLS 不支持（应用不联网）。分片文件名与索引里写的相对路径必须一致。
+- 本地 m3u8 只支持索引和分片都在手机上、且能被一并选中的情况；在线 http(s) m3u8、密钥要从网络取的 AES-128 加密 HLS 不支持（应用不联网）。分片文件名与索引里写的相对路径必须一致。多选时如果少勾了分片，会立刻列出缺哪几个，不必等转码失败；只勾索引文件时按同目录兄弟文件去找分片。同一个 .ts 被 EXT-X-BYTERANGE 切成几段引用时只落一份。
 
 
 ## 许可

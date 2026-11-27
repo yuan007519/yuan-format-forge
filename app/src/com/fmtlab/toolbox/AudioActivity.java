@@ -52,6 +52,7 @@ public class AudioActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_audio);
+        Ui.centerTabletContent(this);
         exec = Executors.newSingleThreadExecutor();
 
         ((TextView) findViewById(R.id.tvTitle)).setText("音频提取");
@@ -88,8 +89,8 @@ public class AudioActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQ_PICK && resultCode == RESULT_OK && data != null && data.getData() != null) {
-            mediaUri = data.getData();
+        if (requestCode == REQ_PICK && resultCode == RESULT_OK && Picker.firstUri(data) != null) {
+            mediaUri = Picker.firstUri(data);
             mediaName = Ui.displayName(this, mediaUri);
             tvMediaInfo.setText("已选择：" + mediaName + "\n正在读取媒体信息…");
             loadInfo();
@@ -555,5 +556,12 @@ public class AudioActivity extends Activity {
         super.onDestroy();
         if (exec != null) exec.shutdownNow();
         handler.removeCallbacksAndMessages(null);
+    }
+
+    @Override
+    public void onConfigurationChanged(android.content.res.Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        // 1.6.1：旋转不再重建页面，这里只把平板居中列的宽度按新屏幕重算一次
+        Ui.refreshTabletLayout(this);
     }
 }

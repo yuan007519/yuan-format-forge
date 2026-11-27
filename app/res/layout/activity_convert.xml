@@ -101,9 +101,31 @@
                     android:layout_marginTop="8dp"
                     android:text="高清＝保留原分辨率；标准＝最长边不超过 1080；小体积＝最长边不超过 720。纯音频输出时画质档位不生效。"
                     style="@style/CaptionText" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="同名文件"
+                    style="@style/CaptionText" />
+
+                <LinearLayout
+                    android:id="@+id/anyDupChips"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="horizontal" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="另存＝输出目录里重名时自动加 (2)；覆盖＝直接替换同名文件，适合反复测试同一段素材。"
+                    style="@style/CaptionText" />
             </LinearLayout>
 
             <LinearLayout
+                android:id="@+id/cardAnyAction"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"

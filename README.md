@@ -18,7 +18,7 @@ Android 端的本地文件格式转换工具。内置 FFmpeg 6.0，图片、PDF�
 | 字幕 | srt / vtt / ass / ssa | srt / vtt / ass / ssa / txt |
 | 音频 | aac / flac / m4a / mp3 / ogg / opus / wav / wma | wav / m4a / aac / mp3 / flac / ogg / opus / wma |
 | 视频 | mp4 / m4v / m4s / mkv / mov / avi / flv / wmv / webm / ts / mts / m2ts / mst | mp4 / webm / mkv / mov / gif / jpg（抽帧）/ mp3 / m4a / wav / flac / ogg / aac / opus / wma |
-| 万能转码 | FFmpeg 可解的常见音视频 | 14 种（MP4 H.264/H.265、MKV、MOV、AVI、WMV、FLV、WebM、MP3、M4A、AAC、WAV、FLAC、OGG） |
+| 万能转码 | FFmpeg 可解的常见音视频，以及本地 m3u8（HLS）+ 同目录分片 | 14 种（MP4 H.264/H.265、MKV、MOV、AVI、WMV、FLV、WebM、MP3、M4A、AAC、WAV、FLAC、OGG） |
 | 编码工具箱 | 文本 | Base64 / URL / HEX / Unicode 双向转换 |
 | 压缩与解压 | 多个文件 / zip | zip；解压保留目录结构，GBK 文件名自动识别 |
 | 历史记录 | — | 最近 120 条输出，可再次分享 |
@@ -31,8 +31,8 @@ Release 页面提供两个包，功能相同，区别是内置的 FFmpeg 原生�
 
 | 文件 | 体积 | 说明 |
 |---|---|---|
-| `yuan-format-forge_1.6.0_arm64.apk` | 27.0 MB | 只含 arm64-v8a |
-| `yuan-format-forge_1.6.0_full.apk` | 54.4 MB | arm64-v8a + armeabi-v7a |
+| `yuan-format-forge_1.6.3_arm64.apk` | 27.7 MB | 只含 arm64-v8a |
+| `yuan-format-forge_1.6.3_full.apk` | 55.1 MB | arm64-v8a + armeabi-v7a |
 
 签名证书（自签名，与历史版本一致，可覆盖升级）：
 
@@ -78,6 +78,7 @@ app/                     Android 工程
     AudioActivity.java   音频提取
     VideoActivity.java   换壳 / GIF / 抽帧 / 音轨
     ConvertActivity.java 万能转码
+    Hls.java             m3u8（HLS）索引解析与分片落盘
     CodecActivity.java   编码工具箱
     ZipActivity.java     压缩与解压
     HistoryActivity.java 历史记录
@@ -116,7 +117,8 @@ docs/                    使用说明、构建说明
 - 视频重编码比较慢，10 分钟 1080p 大约要 1 到 4 分钟。
 - 单次读取的文件上限 256 MB，超出会直接提示。
 - 压缩只做 ZIP，不支持 RAR、7z 和加密压缩包；单包条目不超过 20000 条，解压后总量不超过 2 GB。
-- 平板和横屏是整页居中、首页多列，PDF 这类页面还没做左右双栏；旋转屏幕时转换中的任务会重来。
+- 平板和横屏是整页居中、首页多列；PDF 与文档页在 600dp 以上改左右双栏；旋转屏幕不再中断正在进行的转换。
+- 本地 m3u8 只支持索引和分片都在手机上、且能被一并选中的情况；在线 http(s) m3u8、密钥要从网络取的 AES-128 加密 HLS 不支持（应用不联网）。分片文件名与索引里写的相对路径必须一致。
 
 
 ## 许可

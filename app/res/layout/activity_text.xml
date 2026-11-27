@@ -64,31 +64,44 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
+                    android:baselineAligned="false"
                     android:orientation="horizontal">
 
                     <Button
                         android:id="@+id/btnPaste"
                         android:layout_width="0dp"
-                        android:layout_height="wrap_content"
+                        android:layout_height="44dp"
                         android:layout_marginEnd="8dp"
                         android:layout_weight="1"
+                        android:maxLines="1"
+                        android:minWidth="0dp"
+                        android:paddingLeft="6dp"
+                        android:paddingRight="6dp"
                         style="@style/SoftButton"
                         android:text="粘贴" />
 
                     <Button
                         android:id="@+id/btnOpenTxt"
                         android:layout_width="0dp"
-                        android:layout_height="wrap_content"
+                        android:layout_height="44dp"
                         android:layout_marginEnd="8dp"
                         android:layout_weight="1.4"
+                        android:maxLines="1"
+                        android:minWidth="0dp"
+                        android:paddingLeft="6dp"
+                        android:paddingRight="6dp"
                         style="@style/SoftButton"
-                        android:text="打开文本文件" />
+                        android:text="打开文件" />
 
                     <Button
                         android:id="@+id/btnClear"
                         android:layout_width="0dp"
-                        android:layout_height="wrap_content"
+                        android:layout_height="44dp"
                         android:layout_weight="1"
+                        android:maxLines="1"
+                        android:minWidth="0dp"
+                        android:paddingLeft="6dp"
+                        android:paddingRight="6dp"
                         style="@style/SoftButton"
                         android:text="清空" />
                 </LinearLayout>

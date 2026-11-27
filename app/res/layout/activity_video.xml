@@ -209,7 +209,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="GIF 由 FFmpeg 用 256 色智能调色板生成（palettegen），单次最多 60 秒；帧率越高越流畅，文件也越大。"
+                    android:text="GIF 由 FFmpeg 用 256 色智能调色板生成（palettegen），单次最长 10 分钟；超过 60 秒会自动降帧率、压宽度，帧率越高越流畅，文件也越大。"
                     style="@style/CaptionText" />
             </LinearLayout>
 
@@ -241,7 +241,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="按间隔导出 JPG 图片，单次最多 60 张。"
+                    android:text="按间隔导出 JPG 图片，单次最多 300 张；按 0.5 秒间隔算，够 150 秒的片子。"
                     style="@style/CaptionText" />
             </LinearLayout>
 

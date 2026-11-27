@@ -93,7 +93,8 @@ public final class Hls {
 
     /** m3u8 里所有需要落到本地文件的引用（分片、EXT-X-MAP、本地密钥） */
     private static List<String> localRefs(String text) throws Exception {
-        List<String> out = new ArrayList<String>();
+        // 1.6.5：EXT-X-BYTERANGE 的多个分片会共用同一个文件，重复引用只复制一次
+        java.util.Set<String> out = new java.util.LinkedHashSet<String>();
         for (String raw : text.split("\n")) {
             String line = raw.trim();
             if (line.length() == 0) continue;
@@ -114,7 +115,28 @@ public final class Hls {
             out.add(line);
         }
         if (out.isEmpty()) throw new Exception("这个 m3u8 里没有可读取的分片");
-        return out;
+        return new ArrayList<String>(out);
+    }
+
+    /**
+     * 1.6.5：先算清楚「少选了哪几个分片」，选中之后立刻提示，不用等复制到一半再报错。
+     * 只读索引、不复制文件；索引本身读不到时才抛异常。
+     */
+    public static List<String> missingSelected(Context c, java.util.List<Uri> uris) throws Exception {
+        Uri indexUri = null;
+        for (Uri u : uris) {
+            if (isHls(Ui.displayName(c, u))) {
+                indexUri = u;
+                break;
+            }
+        }
+        List<String> missing = new ArrayList<String>();
+        if (indexUri == null) return missing;
+        String text = readText(c, indexUri);
+        for (String ref : localRefs(text)) {
+            if (findSelected(c, uris, normalize(ref)) == null) missing.add(normalize(ref));
+        }
+        return missing;
     }
 
     private static void checkOffline(String v) throws Exception {

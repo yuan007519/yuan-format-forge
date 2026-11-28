@@ -125,6 +125,66 @@
             </LinearLayout>
 
             <LinearLayout
+                android:id="@+id/cardRestore"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/bg_card"
+                android:elevation="1dp"
+                android:orientation="vertical"
+                android:padding="16dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    style="@style/CardText"
+                    android:text="上次没转完的队列" />
+
+                <TextView
+                    android:id="@+id/tvRestore"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:lineSpacingExtra="3dp"
+                    style="@style/CaptionText"
+                    android:text="—" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:baselineAligned="false"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btnRestoreQueue"
+                        android:layout_width="0dp"
+                        android:layout_height="44dp"
+                        android:layout_marginEnd="8dp"
+                        android:layout_weight="1.2"
+                        android:maxLines="1"
+                        android:minWidth="0dp"
+                        android:paddingLeft="6dp"
+                        android:paddingRight="6dp"
+                        style="@style/SoftButton"
+                        android:text="恢复队列" />
+
+                    <Button
+                        android:id="@+id/btnDropQueue"
+                        android:layout_width="0dp"
+                        android:layout_height="44dp"
+                        android:layout_weight="1"
+                        android:maxLines="1"
+                        android:minWidth="0dp"
+                        android:paddingLeft="6dp"
+                        android:paddingRight="6dp"
+                        style="@style/SoftButton"
+                        android:text="不用了" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout
                 android:id="@+id/cardAnyAction"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

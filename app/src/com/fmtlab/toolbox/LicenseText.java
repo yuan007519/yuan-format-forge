@@ -3,7 +3,7 @@ package com.fmtlab.toolbox;
 /** App 内的法律声明与第三方许可文本（GPLv3 §5(d) 要求的 Appropriate Legal Notices） */
 public final class LicenseText {
 
-    public static final String VERSION_NAME = "1.6.6";
+    public static final String VERSION_NAME = "1.6.7";
     public static final String REPO_URL = "https://github.com/yuan007519/yuan-format-forge";
 
     private LicenseText() {}
@@ -18,7 +18,10 @@ public final class LicenseText {
                 + "也可以继续「另存」加编号；本地 M3U8 少勾分片会在选中后立刻告诉缺哪几个。"
                 + "分片共用同一文件（EXT-X-BYTERANGE）的索引也只复制一次。"
                 + "本版另外修了三处界面细节：视频工具图标改成 4:3 的横向画框，关于页的图标补回上方的小圆点，"
-                + "文本页「打开文件」按钮不再折成两行。\n"
+                + "文本页「打开文件」按钮不再折成两行。"
+                + "另外，万能转码的队列会记下来：转到一半关掉页面、或者应用被系统清掉，"
+                + "下次打开会在顶部问一句「上次留了 N 个没转完」，点「恢复队列」就能接着转，"
+                + "输出格式、画质和另存/覆盖的选择也一并恢复。\n"
                 + "\n"
                 + "本应用全部转换都在手机本地完成：APK 未申请任何权限（包括联网权限），"
                 + "不联网、不上传、不读取与当前任务无关的文件。\n"

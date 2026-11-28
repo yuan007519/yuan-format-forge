@@ -57,12 +57,21 @@ public class ConvertActivity extends Activity {
     private static final String[] Q_LABELS = {"高清", "标准", "小体积"};
     private static final String[] DUP_LABELS = {"另存", "覆盖"};
 
-    private TextView tvAnyInfo, tvAnyStatus, tvAnyLog;
-    private LinearLayout anyResultHost;
+    private TextView tvAnyInfo, tvAnyStatus, tvAnyLog, tvRestore;
+    private LinearLayout anyResultHost, cardRestore;
+    private Button btnAnyConvert, btnAnyCancel, btnRestoreQueue, btnDropQueue;
     private ProgressBar pbAny;
-    private Button btnAnyConvert, btnAnyCancel;
     private Ui.Chips outChips, qualityChips, dupChips;
     private QueueUi queueUi;
+
+    /** 1.6.7：队列落盘，杀进程/关页面之后还能恢复 */
+    private static final String PREF = "convert_queue";
+    private static final String K_QUEUE = "uris";
+    private static final String K_OUT = "out";
+    private static final String K_QUALITY = "quality";
+    private static final String K_DUP = "dup";
+    private static final String JOBS_SEP = "\u0002";
+    private static final String URIS_SEP = "\u0001";
 
     /** 每个队列项对应一组 uri：普通文件只有一个，本地 HLS 是「索引 + 分片」整组 */
     private final List<List<Uri>> jobUris = new ArrayList<List<Uri>>();
@@ -106,6 +115,10 @@ public class ConvertActivity extends Activity {
         pbAny = (ProgressBar) findViewById(R.id.pbAny);
         btnAnyConvert = (Button) findViewById(R.id.btnAnyConvert);
         btnAnyCancel = (Button) findViewById(R.id.btnAnyCancel);
+        cardRestore = (LinearLayout) findViewById(R.id.cardRestore);
+        tvRestore = (TextView) findViewById(R.id.tvRestore);
+        btnRestoreQueue = (Button) findViewById(R.id.btnRestoreQueue);
+        btnDropQueue = (Button) findViewById(R.id.btnDropQueue);
         queueUi = new QueueUi(this, (LinearLayout) findViewById(R.id.cardAnyAction));
 
         outChips = new Ui.Chips(this, (LinearLayout) findViewById(R.id.anyOutChips), OUT_LABELS, 0);
@@ -158,6 +171,119 @@ public class ConvertActivity extends Activity {
                 startBatch();
             }
         });
+
+        btnRestoreQueue.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                restoreQueue();
+            }
+        });
+        btnDropQueue.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                clearSavedQueue();
+                cardRestore.setVisibility(View.GONE);
+                tvAnyStatus.setText("已清掉上次的队列。");
+            }
+        });
+        showSavedQueue();
+    }
+
+    // ------------------------------------------------------------ 队列落盘（1.6.7）
+
+    /** 选完就把队列写进 SharedPreferences，页面被杀掉也能接着转 */
+    private void saveQueue() {
+        try {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < jobUris.size(); i++) {
+                if (i > 0) sb.append(JOBS_SEP);
+                List<Uri> g = jobUris.get(i);
+                for (int k = 0; k < g.size(); k++) {
+                    if (k > 0) sb.append(URIS_SEP);
+                    sb.append(g.get(k).toString());
+                }
+            }
+            getSharedPreferences(PREF, MODE_PRIVATE).edit()
+                    .putString(K_QUEUE, sb.toString())
+                    .putInt(K_OUT, outChips == null ? 0 : outChips.selected())
+                    .putInt(K_QUALITY, qualityChips == null ? 1 : qualityChips.selected())
+                    .putInt(K_DUP, dupChips == null ? 0 : dupChips.selected())
+                    .apply();
+        } catch (Throwable ignored) {
+            // 落盘失败不影响本次转码
+        }
+    }
+
+    private void clearSavedQueue() {
+        try {
+            getSharedPreferences(PREF, MODE_PRIVATE).edit().clear().apply();
+        } catch (Throwable ignored) {}
+    }
+
+    /** 打开页面时，如果上次留了没转完的队列，就在顶部提示一下 */
+    private void showSavedQueue() {
+        try {
+            String q = getSharedPreferences(PREF, MODE_PRIVATE).getString(K_QUEUE, "");
+            if (q == null || q.length() == 0) return;
+            String[] jobs = q.split(JOBS_SEP);
+            if (jobs.length == 0) return;
+            StringBuilder names = new StringBuilder();
+            for (int i = 0; i < jobs.length && i < 3; i++) {
+                String[] us = jobs[i].split(URIS_SEP);
+                String name = Ui.displayName(this, Uri.parse(us[0]));
+                if (i > 0) names.append("、");
+                names.append(name);
+            }
+            if (jobs.length > 3) names.append(" 等");
+            tvRestore.setText("上次留了 " + jobs.length + " 个文件没转完："
+                    + names + "。\n恢复了就能直接点“开始转码”，不用重新选一遍。");
+            cardRestore.setVisibility(View.VISIBLE);
+        } catch (Throwable ignored) {
+            cardRestore.setVisibility(View.GONE);
+        }
+    }
+
+    /** 把上次的队列读回来，连同输出格式/画质/重名策略 */
+    private void restoreQueue() {
+        if (running) {
+            Ui.toast(this, "正在转码，等这一批跑完再恢复");
+            return;
+        }
+        try {
+            android.content.SharedPreferences sp = getSharedPreferences(PREF, MODE_PRIVATE);
+            String q = sp.getString(K_QUEUE, "");
+            if (q == null || q.length() == 0) {
+                cardRestore.setVisibility(View.GONE);
+                return;
+            }
+            jobUris.clear();
+            for (String job : q.split(JOBS_SEP)) {
+                if (job.length() == 0) continue;
+                List<Uri> g = new ArrayList<Uri>();
+                for (String u : job.split(URIS_SEP)) {
+                    if (u.length() > 0) g.add(Uri.parse(u));
+                }
+                if (!g.isEmpty()) jobUris.add(g);
+            }
+            if (jobUris.isEmpty()) {
+                cardRestore.setVisibility(View.GONE);
+                return;
+            }
+            outChips.setSelected(sp.getInt(K_OUT, 0));
+            qualityChips.setSelected(sp.getInt(K_QUALITY, 1));
+            dupChips.setSelected(sp.getInt(K_DUP, 0));
+            qualityChips.setVisible(!OUT_AUDIO[outChips.selected()]);
+            cardRestore.setVisibility(View.GONE);
+            anyResultHost.removeAllViews();
+            tvAnyLog.setText("");
+            buildJobs();
+            srcUri = jobUris.get(0).get(0);
+            srcName = Ui.displayName(this, srcUri);
+            tvAnyStatus.setText("已恢复上次的队列，共 " + jobUris.size()
+                    + " 个文件。点“开始转码”接着转。");
+        } catch (Throwable e) {
+            Ui.toast(this, "恢复失败：" + (e.getMessage() == null ? "队列已失效" : e.getMessage()));
+        }
     }
 
     @Override
@@ -194,6 +320,8 @@ public class ConvertActivity extends Activity {
         tvAnyLog.setText("");
         batch = new TaskHold.State();
         curIndex = -1;
+        cardRestore.setVisibility(View.GONE);
+        keepReadable(all);
 
         if (hlsUri != null) {
             // 整组当一个任务：索引 + 分片
@@ -201,6 +329,7 @@ public class ConvertActivity extends Activity {
             srcUri = hlsUri;
             srcName = Ui.displayName(this, hlsUri);
             buildJobs();
+            saveQueue();
             tvAnyStatus.setText("已选择：" + srcName + "（连同 " + (all.size() - 1) + " 个分片），准备中…");
             prepareHls(all, null);
             return;
@@ -208,6 +337,7 @@ public class ConvertActivity extends Activity {
 
         for (Uri u : all) jobUris.add(allOf(u));
         buildJobs();
+        saveQueue();
         if (jobUris.size() == 1) {
             srcUri = jobUris.get(0).get(0);
             srcName = Ui.displayName(this, srcUri);
@@ -216,6 +346,18 @@ public class ConvertActivity extends Activity {
         } else {
             renderQueue();
             tvAnyStatus.setText("已选择 " + jobUris.size() + " 个文件，点“开始转码”按顺序逐个处理。");
+        }
+    }
+
+    /** 把选中的 uri 申请成持久读权限：这样关掉页面、甚至杀进程后还能再读 */
+    private void keepReadable(List<Uri> uris) {
+        for (Uri u : uris) {
+            try {
+                getContentResolver().takePersistableUriPermission(
+                        u, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            } catch (Throwable ignored) {
+                // 有些 provider 不给持久权限，那就只在本页内有效，不影响本次转码
+            }
         }
     }
 
@@ -705,6 +847,9 @@ public class ConvertActivity extends Activity {
         btnAnyCancel.setEnabled(false);
         batch.finished = true;
         renderQueue();
+        // 整批跑完就把落盘的队列清掉，下次进页面不用再问「要不要恢复」
+        clearSavedQueue();
+        cardRestore.setVisibility(View.GONE);
         int total = batch.jobs.size();
         if (total <= 1) {
             // 单文件时状态行已经写了「完成 / 失败：…」，末尾不再重复

@@ -50,6 +50,9 @@ public final class Picker {
         Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         i.addCategory(Intent.CATEGORY_OPENABLE);
         i.setType("*/*");
+        // 允许把 uri 申请成持久权限，转码队列才能在关掉页面后恢复（1.6.7）
+        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         if (multiple) i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
         return i;
     }

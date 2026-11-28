@@ -27,14 +27,18 @@ Android 端的本地文件格式转换工具。内置 FFmpeg 6.0，图片、PDF�
 
 万能转码可以多选，选中的文件按顺序排队逐个转，第几个失败了后面照常继续，最后给一句「共 N 个，成功几个、失败几个」。输出目录里已经有同名文件时，可选「另存」（自动加 (2)）或「覆盖」（直接换掉同名文件，适合反复试同一段素材）。队列会存在应用私有数据里，转到一半关掉页面或被系统清掉进程，下次进来可以按提示恢复，输出格式和另存 / 覆盖的选择一并带回。
 
+## 界面与说明
+
+每个页面只留一句话说清干什么，细则收在「关于 → 使用说明」：先是三步用完，再按工具分十来个小段，最后是常见问题（输出在哪、为什么慢、空间要多少、修不好怎么办）。
+
 ## 下载
 
 Release 页面提供两个包，功能相同，区别是内置的 FFmpeg 原生库：
 
 | 文件 | 体积 | 说明 |
 |---|---|---|
-| `yuan-format-forge_1.6.7_arm64.apk` | 27.7 MB | 只含 arm64-v8a |
-| `yuan-format-forge_1.6.7_full.apk` | 55.1 MB | arm64-v8a + armeabi-v7a |
+| `yuan-format-forge_1.6.9_arm64.apk` | 27.7 MB | 只含 arm64-v8a |
+| `yuan-format-forge_1.6.9_full.apk` | 55.1 MB | arm64-v8a + armeabi-v7a |
 
 签名证书（自签名，与历史版本一致，可覆盖升级）：
 
@@ -85,6 +89,8 @@ app/                     Android 工程
     ZipActivity.java     压缩与解压
     HistoryActivity.java 历史记录
     AboutActivity.java   许可与版本信息
+    GuideActivity.java   使用说明页
+    GuideText.java       使用说明正文（三步用完 / 各工具 / 常见问题）
     Picker.java          文件选择与类型判断
     History.java         最近 120 条输出记录
     Ui.java              通用界面工具

@@ -12,6 +12,7 @@ public class AboutActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_about);
+        Ui.centerTabletContent(this);
 
         ((TextView) findViewById(R.id.tvTitle)).setText("关于");
         ((TextView) findViewById(R.id.tvSubtitle)).setText("版本 " + LicenseText.VERSION_NAME + " · 作者 袁神 · GPLv3");
@@ -33,5 +34,19 @@ public class AboutActivity extends Activity {
                 Ui.copy(AboutActivity.this, LicenseText.REPO_URL);
             }
         });
+
+        findViewById(R.id.btnOpenGuide).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new android.content.Intent(AboutActivity.this, GuideActivity.class));
+            }
+        });
+    }
+
+    @Override
+    public void onConfigurationChanged(android.content.res.Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        // 1.6.1：旋转不再重建页面，这里只把平板居中列的宽度按新屏幕重算一次
+        Ui.refreshTabletLayout(this);
     }
 }

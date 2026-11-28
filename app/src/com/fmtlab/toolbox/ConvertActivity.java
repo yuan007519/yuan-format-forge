@@ -145,12 +145,9 @@ public class ConvertActivity extends Activity {
             String v = FFmpegKitConfig.getFFmpegVersion();
             if (v != null && v.length() > 0) ver = v;
         } catch (Throwable ignored) {}
-        tvAnyInfo.setText("内核 FFmpeg " + ver + "，已内置 x264 / x265 / VP9 / FLAC / MP3 编码器。\n"
-                + "支持输入：AVI / WMV / RMVB / MKV / MPG / VOB / TS / FLV / MOV / MP4 等，以及几乎所有音频格式。\n"
-                + "多选多个文件会按顺序排队转，一个失败不影响后面的。\n"
-                + "本地 M3U8（HLS）：索引和同目录分片都在手机上时可以直接转成单个 MP4。\n"
-                + "选文件时长按 m3u8 进多选，把同目录分片一起选中最稳；"
-                + "在线 m3u8 链接和需要联网取密钥的加密 HLS 不支持（本应用不联网）。");
+        tvAnyInfo.setText("FFmpeg " + ver + "，x264、x265、VP9、FLAC、MP3 都在里面。AVI、WMV、RMVB、MKV、MOV、MP4 都能读。\n"
+                + "多选就排队转，坏一个不影响后面的。\n"
+                + "本地 m3u8 把索引和分片一起选；在线 m3u8、加密 HLS 不行，应用没网。");
 
         findViewById(R.id.btnPickAny).setOnClickListener(new View.OnClickListener() {
             @Override

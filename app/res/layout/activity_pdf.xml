@@ -165,7 +165,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
-                        android:text="选 DOCX 时按 PDF 原始坐标还原文字、图片和表格线，文字可编辑；扫描件或字体缺编码表时自动按页嵌图，保证内容不丢。要纯图片请用「PDF 转图片」。"
+                        android:text="出 DOCX 时字能改，图片表格照原位摆；扫描件按页贴图。"
                         style="@style/CaptionText" />
                 </LinearLayout>
 
@@ -174,7 +174,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
-                    android:text="PDF 转 PPTX 是图片版：每页 PDF 渲染成一张高清图，放进一张满版幻灯片，排版、字号、图表都保持原样，但不可再编辑文字。清晰度选项同样生效。"
+                    android:text="图片版，一页一张图，排版一样但字改不了。"
                     android:visibility="gone"
                     style="@style/CaptionText" />
             </LinearLayout>
@@ -217,7 +217,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="幻灯片里如果嵌了整页图片（比如本工具生成的图片版 PPTX），会按原图铺满整页还原；纯文字幻灯片按文字重新排版成 PDF。"
+                    android:text="整页图就按图铺，纯文字就重新排。"
                     style="@style/CaptionText" />
             </LinearLayout>
 

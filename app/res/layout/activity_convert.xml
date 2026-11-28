@@ -99,7 +99,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="高清＝保留原分辨率；标准＝最长边不超过 1080；小体积＝最长边不超过 720。纯音频输出时画质档位不生效。"
+                    android:text="高清不缩，标准压到 1080，小体积压到 720。"
                     style="@style/CaptionText" />
 
                 <TextView
@@ -120,7 +120,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="另存＝输出目录里重名时自动加 (2)；覆盖＝直接替换同名文件，适合反复测试同一段素材。"
+                    android:text="重名就加 (2)，选覆盖就直接盖掉。"
                     style="@style/CaptionText" />
             </LinearLayout>
 
@@ -252,7 +252,7 @@
                 android:layout_marginTop="12dp"
                 android:layout_marginRight="6dp"
                 android:lineSpacingExtra="3dp"
-                android:text="转码会重新编码，耗时与视频长度、机型性能有关：10 分钟 1080p 视频大约 1–4 分钟。大文件请留出足够空间。"
+                android:text="要重编码，10 分钟 1080p 约 1–4 分钟。"
                 android:textColor="@color/text_tertiary"
                 android:textSize="11sp" />
         </LinearLayout>

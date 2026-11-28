@@ -92,7 +92,7 @@ public class VideoActivity extends Activity {
         exec = Executors.newSingleThreadExecutor();
 
         ((TextView) findViewById(R.id.tvTitle)).setText("视频工具");
-        ((TextView) findViewById(R.id.tvSubtitle)).setText("换封装 · 转 GIF · 抽帧 · 系统解不了的走 FFmpeg");
+        ((TextView) findViewById(R.id.tvSubtitle)).setText("换封装、转 GIF、抽帧、导音轨");
         findViewById(R.id.btnBack).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -162,25 +162,25 @@ public class VideoActivity extends Activity {
         frameParamCard.setVisibility(mode == 5 ? View.VISIBLE : View.GONE);
         switch (mode) {
             case 0:
-                tvOutHint.setText("换壳：画面和音质完全不变，只换容器，几秒完成、零画质损失。适合把 mkv / mov / ts / flv / rmvb 变成更通用的 MP4。");
+                tvOutHint.setText("只换外壳，画面不动，几秒完事。");
                 break;
             case 1:
-                tvOutHint.setText("WebM 换壳只对 VP8 / VP9 编码的视频有效；H.264 的视频请用 MP4，否则只能改用 VP9 重编码。");
+                tvOutHint.setText("WebM 只装 VP8、VP9，H.264 的请走 MP4。");
                 break;
             case 2:
-                tvOutHint.setText("MKV 换壳由 FFmpeg 做流拷贝：avi / flv / wmv / m2ts / mts / ts / m4s 等容器都能装进 mkv，编码不动、画质不变。");
+                tvOutHint.setText("流拷贝，avi、flv、ts 都塞得进去。");
                 break;
             case 3:
                 tvOutHint.setText("MOV 换壳：苹果生态与剪辑软件通用的容器，同样是流拷贝，一条视频几秒完成。");
                 break;
             case 4:
-                tvOutHint.setText("GIF：由 FFmpeg 内核逐帧取画并用 256 色智能调色板量化（palettegen）。单次最长 10 分钟，超过 60 秒会按时长自动降帧率和宽度，免得文件过大。");
+                tvOutHint.setText("逐帧扒图压 256 色，最长 10 分钟。");
                 break;
             case 5:
-                tvOutHint.setText("抽帧：按固定间隔导出 JPG 图片，用来做封面、截图集、分镜参考；单次最多 300 张，超过时把间隔调大。");
+                tvOutHint.setText("按间隔出 JPG，一次最多 300 张。");
                 break;
             default:
-                tvOutHint.setText("音轨导出：只保留声音，容器可换 MP3 / M4A / WAV / FLAC / OGG / AAC / OPUS / WMA，视频画面不保留。");
+                tvOutHint.setText("只留声音，MP3、M4A、WAV 都行。");
                 break;
         }
     }
@@ -262,7 +262,7 @@ public class VideoActivity extends Activity {
             if (video == 0) sb.append("这个文件里没有视频轨道");
             else sb.append(" · 共 ").append(ex.getTrackCount()).append(" 条轨道");
         } catch (Exception e) {
-            sb.append("系统解不开这个封装（RMVB / VOB / 老 AVI / WMV），换壳与 GIF 会自动改用 FFmpeg 内核");
+            sb.append("系统放不了这个封装，它会自动用 FFmpeg");
         } finally {
             try { ex.release(); } catch (Exception ignored) {}
         }
@@ -740,7 +740,7 @@ public class VideoActivity extends Activity {
         double dur = parseSec(etGifDuration, 3);
         if (start < 0) start = 0;
         if (dur <= 0) throw new Exception("时长要大于 0 秒");
-        if (dur > 600) throw new Exception("GIF 单次最多 10 分钟——再长体积会失控，建议改用「抽帧图片」或直接转成视频格式");
+        if (dur > 600) throw new Exception("GIF 最长 10 分钟，再长就用抽帧或直接出视频");
         // 放开 60 秒限制后按时长自动降档，避免动辄几百 MB 的 GIF
         String downgrade = "";
         if (dur > 60) {

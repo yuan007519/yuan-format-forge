@@ -49,14 +49,14 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="选文件不再按类型过滤"
+                    android:text="还没有选择视频"
                     style="@style/CaptionText" />
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="rmvb / vob / m2ts / 老 AVI 等也能选到；系统解不开的会自动交给 FFmpeg 内核处理"
+                    android:text="rmvb、vob、老 AVI 也能选。"
                     style="@style/CaptionText" />
 
             </LinearLayout>
@@ -94,7 +94,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="换壳：视频画面和音质完全不变，只是换一个容器格式，几秒完成、无画质损失。"
+                    android:text="只换外壳，画面不动，几秒完事。"
                     style="@style/CaptionText" />
             </LinearLayout>
 
@@ -158,7 +158,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:text="截取区间（秒，留空 = 从 0 秒起、取 3 秒）"
+                    android:text="截取区间（秒，不填就取前 3 秒）"
                     style="@style/CaptionText" />
 
                 <LinearLayout
@@ -209,7 +209,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="GIF 由 FFmpeg 用 256 色智能调色板生成（palettegen），单次最长 10 分钟；超过 60 秒会自动降帧率、压宽度，帧率越高越流畅，文件也越大。"
+                    android:text="逐帧扒图压 256 色，最长 10 分钟。"
                     style="@style/CaptionText" />
             </LinearLayout>
 
@@ -241,7 +241,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="按间隔导出 JPG 图片，单次最多 300 张；按 0.5 秒间隔算，够 150 秒的片子。"
+                    android:text="按间隔出 JPG，一次最多 300 张。"
                     style="@style/CaptionText" />
             </LinearLayout>
 

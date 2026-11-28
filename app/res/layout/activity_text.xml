@@ -43,7 +43,7 @@
                     android:layout_marginTop="6dp"
                     android:lineSpacingExtra="3dp"
                     style="@style/CaptionText"
-                    android:text="支持直接粘贴，或读取 .txt / .csv / .html / .md / .log / .srt 等文本文件。整段乱码、单行乱码都能修。" />
+                    android:text="粘贴或打开 txt、csv、md 都行，整篇乱、几行乱都能修。" />
 
                 <EditText
                     android:id="@+id/etInput"
@@ -156,7 +156,7 @@
                     android:layout_marginTop="4dp"
                     android:lineSpacingExtra="3dp"
                     style="@style/CaptionText"
-                    android:text="原理：乱码 = 用 A 编码写出的字节被当成 B 编码读出来。工具会把所有常见 A/B 组合反向推演一遍，挑最像正常文本的结果。" />
+                    android:text="乱码就是写的时候用了一种编码、读的时候用错了另一种。" />
             </LinearLayout>
 
             <!-- ③ 结果 -->

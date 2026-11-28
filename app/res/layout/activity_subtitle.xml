@@ -79,7 +79,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="SRT / VTT 通用；ASS / SSA 带样式行（会重建一套默认样式）；TXT 只留文字内容。"
+                    android:text="SRT、VTT 哪都能用；ASS 的样式带不过去，给套默认的；只要文字转 TXT。"
                     style="@style/CaptionText" />
 
                 <Button

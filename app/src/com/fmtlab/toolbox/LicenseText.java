@@ -3,31 +3,22 @@ package com.fmtlab.toolbox;
 /** App 内的法律声明与第三方许可文本（GPLv3 §5(d) 要求的 Appropriate Legal Notices） */
 public final class LicenseText {
 
-    public static final String VERSION_NAME = "1.6.7";
+    public static final String VERSION_NAME = "1.6.9";
     public static final String REPO_URL = "https://github.com/yuan007519/yuan-format-forge";
 
     private LicenseText() {}
 
     public static String about() {
-        return "袁神的格式工坊 v" + VERSION_NAME + "\n"
-                + "包名：com.fmtlab.toolbox\n"
-                + "十二个模块：文本乱码修复、图片、PDF（转图片 / 合 PDF / ⇄ PPTX / 抽文本 / 版式 Word）、文档、字幕、音频、视频、万能转码、编码工具、压缩与解压、历史记录、关于\n"
+        return "袁神的格式工坊 " + VERSION_NAME + "\n"
+                + "com.fmtlab.toolbox\n"
                 + "\n"
-                + "本次更新（v" + VERSION_NAME + "）：万能转码支持多选排队——选多个文件按顺序逐个转，"
-                + "一个失败不影响后面的文件，结果逐个列出；输出重名可选「覆盖」直接替换，"
-                + "也可以继续「另存」加编号；本地 M3U8 少勾分片会在选中后立刻告诉缺哪几个。"
-                + "分片共用同一文件（EXT-X-BYTERANGE）的索引也只复制一次。"
-                + "本版另外修了三处界面细节：视频工具图标改成 4:3 的横向画框，关于页的图标补回上方的小圆点，"
-                + "文本页「打开文件」按钮不再折成两行。"
-                + "另外，万能转码的队列会记下来：转到一半关掉页面、或者应用被系统清掉，"
-                + "下次打开会在顶部问一句「上次留了 N 个没转完」，点「恢复队列」就能接着转，"
-                + "输出格式、画质和另存/覆盖的选择也一并恢复。\n"
+                + "十二个工具：文本、图片、PDF、文档、字幕、音频、视频、万能转码、编码、压缩、历史，加这一页。\n"
                 + "\n"
-                + "本应用全部转换都在手机本地完成：APK 未申请任何权限（包括联网权限），"
-                + "不联网、不上传、不读取与当前任务无关的文件。\n"
+                + "说明文字重写了一遍。页面只留一句，细则在「使用说明」。\n"
                 + "\n"
-                + "作者：袁神（个人项目）。这是一个业余时间写的工具集，不提供任何形式的担保，"
-                + "重要文件请在转换前自行备份。";
+                + "不上网、不要权限，文件不出手机。\n"
+                + "\n"
+                + "一个人写的，有坑。重要文件先备份。";
     }
 
     /** 关于作者：一篇不带任何真实身份信息的自述 */

@@ -109,20 +109,10 @@
             android:layout_marginLeft="22dp"
             android:layout_marginTop="14dp"
             android:layout_marginRight="22dp"
+            android:layout_marginBottom="28dp"
             android:lineSpacingExtra="4dp"
             android:text="@string/tip_local"
             android:textColor="@color/text_tertiary"
             android:textSize="11.5sp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginLeft="22dp"
-            android:layout_marginTop="10dp"
-            android:layout_marginRight="22dp"
-            android:layout_marginBottom="28dp"
-            android:text="文本 / 图片 / PDF / 文档 / 音频 / 视频 / 万能转码 / 编码，全部在本机完成"
-            android:textColor="@color/text_tertiary"
-            android:textSize="11sp" />
     </LinearLayout>
 </ScrollView>

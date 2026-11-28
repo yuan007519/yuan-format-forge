@@ -14,6 +14,7 @@
         <include layout="@layout/part_topbar" />
 
         <LinearLayout
+            android:id="@+id/docBody"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
@@ -23,6 +24,7 @@
             android:paddingBottom="28dp">
 
             <LinearLayout
+                android:id="@+id/cardPickDoc"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="@drawable/bg_card"
@@ -49,11 +51,12 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="支持 .docx / .xlsx / .pptx / .html / .htm / .md / .txt / .csv"
+                    android:text=".docx / .xlsx / .pptx / .odt / .epub / .html / .md / .csv"
                     style="@style/CaptionText" />
             </LinearLayout>
 
             <LinearLayout
+                android:id="@+id/cardDocFormat"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
@@ -91,6 +94,7 @@
             </LinearLayout>
 
             <LinearLayout
+                android:id="@+id/cardDocRun"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
@@ -113,12 +117,23 @@
                     android:layout_marginTop="10dp"
                     android:indeterminateTint="@color/brand"
                     android:visibility="gone" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/cardDocResult"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/bg_card"
+                android:elevation="1dp"
+                android:orientation="vertical"
+                android:padding="16dp"
+                android:visibility="gone">
 
                 <TextView
                     android:id="@+id/tvDocStatus"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
                     android:text="转换结果会显示在这里"
                     style="@style/CaptionText" />
 
